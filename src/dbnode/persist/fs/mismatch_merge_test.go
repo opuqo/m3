@@ -569,3 +569,29 @@ func TestMerge(t *testing.T) {
 	err := merge(inStream, reader, outStream)
 	assert.NoError(t, err)
 }
+
+func TestMergeIntermittentBlockJagged(t *testing.T) {
+	bl := ident.IndexHashBlock{
+		Marker:      []byte("z"),
+		IndexHashes: []ident.IndexHash{idxHash(1), idxHash(2), idxHash(4), idxHash(6)},
+	}
+
+	inStream := buildDataInputStream([]ident.IndexHashBlock{bl})
+	reader := newEntryReaders(
+		idxEntry(1, "b"),
+		idxEntry(3, "f"),
+		idxEntry(5, "w"),
+		idxEntry(6, "z"),
+	)
+
+	outStream, wg := buildExpectedOutputStream(t, ReadMismatches{
+		mismatch(MismatchOnlyOnPrimary, 2, nil),
+		mismatch(MismatchOnlyOnSecondary, 3, nil),
+		mismatch(MismatchOnlyOnPrimary, 4, nil),
+		mismatch(MismatchOnlyOnSecondary, 5, nil),
+	})
+	defer wg.Wait()
+
+	err := merge(inStream, reader, outStream)
+	assert.NoError(t, err)
+}
