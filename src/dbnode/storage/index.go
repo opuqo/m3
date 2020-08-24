@@ -191,6 +191,7 @@ type indexFilesetsBeforeFn func(dir string,
 type readIndexInfoFilesFn func(filePathPrefix string,
 	namespace ident.ID,
 	readerBufferSize int,
+	fileSetType persist.FileSetType,
 ) []fs.ReadIndexInfoFileResult
 
 type newNamespaceIndexOpts struct {
@@ -1015,6 +1016,7 @@ func (i *nsIndex) flushableBlocks(
 		fsOpts.FilePathPrefix(),
 		i.nsMetadata.ID(),
 		fsOpts.InfoReaderBufferSize(),
+		persist.FileSetFlushType,
 	)
 	flushable := make([]index.Block, 0, len(i.state.blocksByTime))
 
@@ -1939,6 +1941,7 @@ func (i *nsIndex) CleanupDuplicateFileSets() error {
 		fsOpts.FilePathPrefix(),
 		i.nsMetadata.ID(),
 		fsOpts.InfoReaderBufferSize(),
+		persist.FileSetFlushType,
 	)
 
 	segmentsOrderByVolumeIndexByVolumeTypeAndBlockStart := make(map[time.Time]map[idxpersist.IndexVolumeType][]fs.Segments)
