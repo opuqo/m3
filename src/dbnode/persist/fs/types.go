@@ -654,8 +654,10 @@ type ReadMismatch struct {
 	// Type is the mismatch type.
 	Type MismatchType
 	// Checksum is the data checksum for the mismatched series.
+	// FIXME: (arnikola) change comment ot index checksum when it makes sense.
 	Checksum uint32
 	// IDHash is the id hash for the mismatched series.
+	// FIXME: (arnikola) deprecated, remove after refactor completed
 	IDHash uint64
 	// Data is the data for this query.
 	// NB: only present for MismatchMissingInSummary and MismatchChecksumMismatch.

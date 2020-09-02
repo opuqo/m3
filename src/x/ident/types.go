@@ -312,6 +312,17 @@ func (t Tags) Equal(other Tags) bool {
 	return true
 }
 
+// IndexHash is a minimal summary of a series block.
+type IndexHash struct {
+	// BlockStart is the start time for this block.
+	BlockStart time.Time
+	// DataChecksum is the computed data checksum for this ID for this block.
+	DataChecksum uint32
+	// IDHash is a hash of the series ID.
+	IDHash        uint64
+	IndexChecksum uint32
+}
+
 // IndexHashBlock represents a set of IndexHashes associated with a series ID.
 type IndexHashBlock struct {
 	// IDHash is a hash of the series ID.
@@ -323,12 +334,10 @@ type IndexHashBlock struct {
 	Marker []byte
 }
 
-// IndexHash is a minimal summary of a series block.
-type IndexHash struct {
-	// BlockStart is the start time for this block.
-	BlockStart time.Time
-	// DataChecksum is the computed data checksum for this ID for this block.
-	DataChecksum uint32
-	// IDHash is a hash of the series ID.
-	IDHash uint64
+// IndexChecksumBlock represents a set of index checksums within a series block.
+type IndexChecksumBlock struct {
+	// Checksums is the list of index checksums.
+	Checksums []uint32
+	// Marker is a batch marker, signifying the ID of the last element in the batch.
+	Marker []byte
 }
