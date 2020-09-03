@@ -884,20 +884,20 @@ func (mr *MockDatabaseBlockRetrieverMockRecorder) Stream(ctx, shard, id, blockSt
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).Stream), ctx, shard, id, blockStart, onRetrieve, nsCtx)
 }
 
-// StreamIndexHash mocks base method
-func (m *MockDatabaseBlockRetriever) StreamIndexHash(ctx context.Context, shard uint32, id ident.ID, startTime time.Time, nsCtx namespace.Context) (ident.IndexHash, bool, error) {
+// StreamIndexChecksum mocks base method
+func (m *MockDatabaseBlockRetriever) StreamIndexChecksum(ctx context.Context, shard uint32, id ident.ID, useID bool, startTime time.Time, nsCtx namespace.Context) (ident.IndexChecksumBlock, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StreamIndexHash", ctx, shard, id, startTime, nsCtx)
-	ret0, _ := ret[0].(ident.IndexHash)
+	ret := m.ctrl.Call(m, "StreamIndexChecksum", ctx, shard, id, useID, startTime, nsCtx)
+	ret0, _ := ret[0].(ident.IndexChecksumBlock)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
-// StreamIndexHash indicates an expected call of StreamIndexHash
-func (mr *MockDatabaseBlockRetrieverMockRecorder) StreamIndexHash(ctx, shard, id, startTime, nsCtx interface{}) *gomock.Call {
+// StreamIndexChecksum indicates an expected call of StreamIndexChecksum
+func (mr *MockDatabaseBlockRetrieverMockRecorder) StreamIndexChecksum(ctx, shard, id, useID, startTime, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamIndexHash", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).StreamIndexHash), ctx, shard, id, startTime, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamIndexChecksum", reflect.TypeOf((*MockDatabaseBlockRetriever)(nil).StreamIndexChecksum), ctx, shard, id, useID, startTime, nsCtx)
 }
 
 // AssignShardSet mocks base method
@@ -950,20 +950,20 @@ func (mr *MockDatabaseShardBlockRetrieverMockRecorder) Stream(ctx, id, blockStar
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stream", reflect.TypeOf((*MockDatabaseShardBlockRetriever)(nil).Stream), ctx, id, blockStart, onRetrieve, nsCtx)
 }
 
-// StreamIndexHash mocks base method
-func (m *MockDatabaseShardBlockRetriever) StreamIndexHash(ctx context.Context, id ident.ID, blockStart time.Time, nsCtx namespace.Context) (ident.IndexHash, bool, error) {
+// StreamIndexChecksum mocks base method
+func (m *MockDatabaseShardBlockRetriever) StreamIndexChecksum(ctx context.Context, id ident.ID, useID bool, blockStart time.Time, nsCtx namespace.Context) (ident.IndexChecksumBlock, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StreamIndexHash", ctx, id, blockStart, nsCtx)
-	ret0, _ := ret[0].(ident.IndexHash)
+	ret := m.ctrl.Call(m, "StreamIndexChecksum", ctx, id, useID, blockStart, nsCtx)
+	ret0, _ := ret[0].(ident.IndexChecksumBlock)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
-// StreamIndexHash indicates an expected call of StreamIndexHash
-func (mr *MockDatabaseShardBlockRetrieverMockRecorder) StreamIndexHash(ctx, id, blockStart, nsCtx interface{}) *gomock.Call {
+// StreamIndexChecksum indicates an expected call of StreamIndexChecksum
+func (mr *MockDatabaseShardBlockRetrieverMockRecorder) StreamIndexChecksum(ctx, id, useID, blockStart, nsCtx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamIndexHash", reflect.TypeOf((*MockDatabaseShardBlockRetriever)(nil).StreamIndexHash), ctx, id, blockStart, nsCtx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StreamIndexChecksum", reflect.TypeOf((*MockDatabaseShardBlockRetriever)(nil).StreamIndexChecksum), ctx, id, useID, blockStart, nsCtx)
 }
 
 // MockDatabaseBlockRetrieverManager is a mock of DatabaseBlockRetrieverManager interface

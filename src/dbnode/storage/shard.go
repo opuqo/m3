@@ -371,17 +371,20 @@ func (s *dbShard) Stream(
 	onRetrieve block.OnRetrieveBlock,
 	nsCtx namespace.Context,
 ) (xio.BlockReader, error) {
-	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, blockStart, onRetrieve, nsCtx)
+	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id,
+		blockStart, onRetrieve, nsCtx)
 }
 
-// Stream implements series.QueryableBlockRetriever
-func (s *dbShard) StreamIndexHash(
+// StreamIndexChecksum implements series.QueryableBlockRetriever
+func (s *dbShard) StreamIndexChecksum(
 	ctx context.Context,
 	id ident.ID,
+	useID bool,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexHash, bool, error) {
-	return s.DatabaseBlockRetriever.StreamIndexHash(ctx, s.shard, id, blockStart, nsCtx)
+) (ident.IndexChecksumBlock, bool, error) {
+	return s.DatabaseBlockRetriever.StreamIndexChecksum(ctx, s.shard, id,
+		useID, blockStart, nsCtx)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -1121,12 +1124,13 @@ func (s *dbShard) ReadEncoded(
 	return reader.ReadEncoded(ctx, start, end, nsCtx)
 }
 
-func (s *dbShard) IndexHashes(
+func (s *dbShard) IndexChecksum(
 	ctx context.Context,
 	id ident.ID,
-	start, end time.Time,
+	useID bool,
+	start time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexHashBlock, error) {
+) (ident.IndexChecksumBlock, error) {
 	s.RLock()
 	// NB: safe to lookup the entry in the cache, but not to add it, since
 	// this path represents operations that are likely to affect the entire
@@ -1144,20 +1148,20 @@ func (s *dbShard) IndexHashes(
 		switch s.opts.SeriesCachePolicy() {
 		case series.CacheAll:
 			// No-op, would be in memory if cached
-			return ident.IndexHashBlock{}, nil
+			return ident.IndexChecksumBlock{}, nil
 		}
 	} else if err != nil {
-		return ident.IndexHashBlock{}, err
+		return ident.IndexChecksumBlock{}, err
 	}
 
 	if entry != nil {
-		return entry.Series.IndexHashes(ctx, start, end, nsCtx)
+		return entry.Series.IndexChecksum(ctx, start, useID, nsCtx)
 	}
 
 	retriever := s.seriesBlockRetriever
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, nil, nil, opts)
-	return reader.IndexHashes(ctx, start, end, nsCtx)
+	return reader.IndexChecksum(ctx, start, useID, nsCtx)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.

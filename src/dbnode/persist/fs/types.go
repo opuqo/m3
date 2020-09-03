@@ -204,10 +204,9 @@ type DataFileSetSeeker interface {
 	// to prevent duplicate index lookups.
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
-	// SeekIndexEntryToIndexHash seeks in a manner similar to SeekIndexEntry, but
-	// instead yields a minimal structure describing a hash of the ID and the data
-	// checksum per entry.
-	SeekIndexEntryToIndexHash(id ident.ID, resources ReusableSeekerResources) (ident.IndexHash, error)
+	// SeekIndexEntryToIndexChecksum seeks in a manner similar to SeekIndexEntry, but
+	// instead yields a minimal structure describing a checksum of the series.
+	SeekIndexEntryToIndexChecksum(id ident.ID, withID bool, resources ReusableSeekerResources) (ident.IndexChecksumBlock, error)
 
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range
@@ -244,8 +243,8 @@ type ConcurrentDataFileSetSeeker interface {
 	// SeekIndexEntry is the same as in DataFileSetSeeker.
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
-	// SeekIndexEntryToIndexHash is the same as in DataFileSetSeeker.
-	SeekIndexEntryToIndexHash(id ident.ID, resources ReusableSeekerResources) (ident.IndexHash, error)
+	// SeekIndexEntryToIndexChecksum is the same as in DataFileSetSeeker.
+	SeekIndexEntryToIndexChecksum(id ident.ID, withID bool, resources ReusableSeekerResources) (ident.IndexChecksumBlock, error)
 
 	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker.
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
@@ -651,14 +650,8 @@ const (
 // ReadMismatch describes a metric that does not match a given summary,
 // with descriptor of the mismatch.
 type ReadMismatch struct {
-	// Type is the mismatch type.
-	Type MismatchType
-	// Checksum is the data checksum for the mismatched series.
-	// FIXME: (arnikola) change comment ot index checksum when it makes sense.
+	// Checksum is the checksum for the mismatched series.
 	Checksum uint32
-	// IDHash is the id hash for the mismatched series.
-	// FIXME: (arnikola) deprecated, remove after refactor completed
-	IDHash uint64
 	// Data is the data for this query.
 	// NB: only present for MismatchMissingInSummary and MismatchChecksumMismatch.
 	Data checked.Bytes
@@ -668,6 +661,4 @@ type ReadMismatch struct {
 	// ID is the ID for this query.
 	// NB: only present for MismatchMissingInSummary.
 	ID ident.ID
-	// Err is any error associated with this mismatch.
-	Err error
 }

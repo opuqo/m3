@@ -3155,7 +3155,7 @@ func TestServiceIndexHash(t *testing.T) {
 	sp.Finish()
 	spans := mtr.FinishedSpans()
 	require.Len(t, spans, 3)
-	assert.Equal(t, tracepoint.IndexHashSingleResult, spans[0].OperationName)
+	assert.Equal(t, tracepoint.IndexChecksumSingleResult, spans[0].OperationName)
 	assert.Equal(t, tracepoint.IndexHash, spans[1].OperationName)
 	assert.Equal(t, "root", spans[2].OperationName)
 }

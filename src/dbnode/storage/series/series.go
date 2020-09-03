@@ -402,14 +402,15 @@ func (s *dbSeries) ReadEncoded(
 	return r, err
 }
 
-func (s *dbSeries) IndexHashes(
+func (s *dbSeries) IndexChecksum(
 	ctx context.Context,
-	start, end time.Time,
+	start time.Time,
+	useID bool,
 	nsCtx namespace.Context,
-) (ident.IndexHashBlock, error) {
+) (ident.IndexChecksumBlock, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
-	r, err := reader.indexHashes(ctx, start, end, nsCtx)
+	r, err := reader.indexChecksum(ctx, start, useID, nsCtx)
 	s.RUnlock()
 	return r, err
 }

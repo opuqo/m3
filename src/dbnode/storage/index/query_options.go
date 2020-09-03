@@ -29,20 +29,22 @@ import (
 // QueryOptions enables users to specify constraints and
 // preferences on query execution.
 type QueryOptions struct {
-	StartInclusive    time.Time
-	EndExclusive      time.Time
-	SeriesLimit       int
-	DocsLimit         int
-	RequireExhaustive bool
-	IterationOptions  IterationOptions
-	IndexHashQuery    bool
+	StartInclusive     time.Time
+	EndExclusive       time.Time
+	SeriesLimit        int
+	DocsLimit          int
+	RequireExhaustive  bool
+	IterationOptions   IterationOptions
+	IndexChecksumQuery bool
+	BatchSize          int
 }
 
-// ToIndexHashQueryOptions converts these options into index hash query options.
-func (o QueryOptions) ToIndexHashQueryOptions() QueryOptions {
+// ToIndexChecksumQueryOptions converts these options into index hash query options.
+func (o QueryOptions) ToIndexChecksumQueryOptions(batchSize int) QueryOptions {
 	o.SeriesLimit = 0
 	o.DocsLimit = 0
-	o.IndexHashQuery = true
+	o.IndexChecksumQuery = true
+	o.BatchSize = batchSize
 	return o
 }
 
@@ -60,7 +62,7 @@ func (o QueryOptions) DocsLimitExceeded(size int) bool {
 
 // LimitsExceeded returns whether a given size exceeds the given limits.
 func (o QueryOptions) LimitsExceeded(seriesCount, docsCount int) bool {
-	if o.IndexHashQuery {
+	if o.IndexChecksumQuery {
 		return false
 	}
 
@@ -72,7 +74,7 @@ func (o QueryOptions) exhaustive(seriesCount, docsCount int) bool {
 }
 
 func (o QueryOptions) tracepoint(idxHash, query string) string {
-	if o.IndexHashQuery {
+	if o.IndexChecksumQuery {
 		return idxHash
 	}
 
@@ -80,20 +82,20 @@ func (o QueryOptions) tracepoint(idxHash, query string) string {
 }
 
 func (o QueryOptions) queryTracepoint() string {
-	return o.tracepoint(tracepoint.IndexHashQuery, tracepoint.BlockQuery)
+	return o.tracepoint(tracepoint.IndexChecksumQuery, tracepoint.BlockQuery)
 }
 
 // NSTracepoint yields the appropriate tracepoint for namespace tchannelthrift path.
 func (o QueryOptions) NSTracepoint() string {
-	return o.tracepoint(tracepoint.NSIndexHash, tracepoint.NSQueryIDs)
+	return o.tracepoint(tracepoint.NSIndexChecksum, tracepoint.NSQueryIDs)
 }
 
 // DBTracepoint yields the appropriate tracepoint for database tchannelthrift path.
 func (o QueryOptions) DBTracepoint() string {
-	return o.tracepoint(tracepoint.DBQueryIDsIndexHash, tracepoint.DBQueryIDs)
+	return o.tracepoint(tracepoint.DBQueryIDsIndexChecksum, tracepoint.DBQueryIDs)
 }
 
 // NSIdxTracepoint yields the appropriate tracepoint for index namespace tchannelthrift path.
 func (o QueryOptions) NSIdxTracepoint() string {
-	return o.tracepoint(tracepoint.NSIndexHashQuery, tracepoint.NSIdxQuery)
+	return o.tracepoint(tracepoint.NSIndexChecksumQuery, tracepoint.NSIdxQuery)
 }

@@ -21,7 +21,6 @@
 package fs
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -75,35 +74,17 @@ func buildExpectedOutputStream(
 	return ch, &wg
 }
 
-func buildDataInputStream(bls []ident.IndexHashBlock) <-chan ident.IndexHashBlock {
-	ch := make(chan ident.IndexHashBlock)
-	go func() {
-		for _, bl := range bls {
-			ch <- bl
-		}
-		close(ch)
-	}()
-
-	return ch
-}
-
-func idxHash(i int) ident.IndexHash {
-	return ident.IndexHash{DataChecksum: uint32(i)}
-}
-
 func idxEntry(i int, id string) entry {
 	return entry{
 		entry: schema.IndexEntry{
-			DataChecksum: int64(i),
-			ID:           []byte(id),
+			ID: []byte(id),
 		},
 		idChecksum: uint32(i),
-		idHash:     uint64(i),
 	}
 }
 
 func mismatch(t MismatchType, i int, id []byte) ReadMismatch {
-	m := ReadMismatch{Type: t, Checksum: uint32(i)}
+	m := ReadMismatch{Checksum: uint32(i)}
 	if len(id) > 0 {
 		m.ID = ident.BytesID(id)
 	}
@@ -111,54 +92,7 @@ func mismatch(t MismatchType, i int, id []byte) ReadMismatch {
 	return m
 }
 
-func assertClosed(t *testing.T, in <-chan ident.IndexHashBlock) {
-	_, isOpen := <-in
-	require.False(t, isOpen)
-}
-
-func TestReportErrorDrainAndClose(t *testing.T) {
-	err := errors.New("an error")
-	inStream := buildDataInputStream([]ident.IndexHashBlock{
-		{IndexHashes: []ident.IndexHash{idxHash(3), idxHash(4)}},
-		{IndexHashes: []ident.IndexHash{idxHash(5)}},
-		{IndexHashes: []ident.IndexHash{}},
-		{IndexHashes: []ident.IndexHash{idxHash(6)}},
-	})
-	outStream, wg := buildExpectedOutputStream(t, []ReadMismatch{
-		ReadMismatch{Type: MismatchError, Err: err},
-	})
-	defer wg.Wait()
-
-	w := newStreamMismatchWriter(instrument.NewOptions())
-	// NB: this will verify that inStream is drained.
-	w.reportErrorDrainAndClose(err, inStream, outStream)
-	assertClosed(t, inStream)
-}
-
-func TestDrainRemainingBlockStreamAndCloseLegacy(t *testing.T) {
-	batch := []ident.IndexHash{idxHash(1), idxHash(2)}
-	inStream := buildDataInputStream([]ident.IndexHashBlock{
-		{IndexHashes: []ident.IndexHash{idxHash(3), idxHash(4)}},
-		{IndexHashes: []ident.IndexHash{idxHash(5)}},
-		{IndexHashes: []ident.IndexHash{}},
-		{IndexHashes: []ident.IndexHash{idxHash(6)}},
-	})
-	outStream, wg := buildExpectedOutputStream(t, []ReadMismatch{
-		mismatch(MismatchOnlyOnPrimary, 1, nil),
-		mismatch(MismatchOnlyOnPrimary, 2, nil),
-		mismatch(MismatchOnlyOnPrimary, 3, nil),
-		mismatch(MismatchOnlyOnPrimary, 4, nil),
-		mismatch(MismatchOnlyOnPrimary, 5, nil),
-		mismatch(MismatchOnlyOnPrimary, 6, nil),
-	})
-	defer wg.Wait()
-
-	w := newStreamMismatchWriter(instrument.NewOptions())
-	w.drainRemainingBlockStreamAndClose(batch, inStream, outStream)
-	assertClosed(t, inStream)
-}
-
-func buildDataInputStreamIdxChecksum(
+func buildDataInputStream(
 	bls []ident.IndexChecksumBlock,
 ) <-chan ident.IndexChecksumBlock {
 	ch := make(chan ident.IndexChecksumBlock)
@@ -172,14 +106,14 @@ func buildDataInputStreamIdxChecksum(
 	return ch
 }
 
-func assertClosedIdxChecksum(t *testing.T, in <-chan ident.IndexChecksumBlock) {
+func assertClosed(t *testing.T, in <-chan ident.IndexChecksumBlock) {
 	_, isOpen := <-in
 	require.False(t, isOpen)
 }
 
 func TestDrainRemainingBlockStreamAndClose(t *testing.T) {
 	batch := []uint32{1, 2}
-	inStream := buildDataInputStreamIdxChecksum([]ident.IndexChecksumBlock{
+	inStream := buildDataInputStream([]ident.IndexChecksumBlock{
 		{Checksums: []uint32{3, 4}},
 		{Checksums: []uint32{5}},
 		{Checksums: []uint32{}},
@@ -196,8 +130,8 @@ func TestDrainRemainingBlockStreamAndClose(t *testing.T) {
 	defer wg.Wait()
 
 	w := newStreamMismatchWriter(instrument.NewOptions())
-	w.drainRemainingBatchtreamAndCloseIdxChecksum(batch, inStream, outStream)
-	assertClosedIdxChecksum(t, inStream)
+	w.drainRemainingBatchtreamAndClose(batch, inStream, outStream)
+	assertClosed(t, inStream)
 }
 
 func TestReadRemainingReadersAndClose(t *testing.T) {
@@ -211,7 +145,7 @@ func TestReadRemainingReadersAndClose(t *testing.T) {
 	defer wg.Wait()
 
 	w := newStreamMismatchWriter(instrument.NewOptions())
-	w.readRemainingReadersAndCloseIdxChecksum(entry, reader, outStream)
+	w.readRemainingReadersAndClose(entry, reader, outStream)
 }
 
 func TestEmitChecksumMismatches(t *testing.T) {
@@ -229,7 +163,7 @@ func TestEmitChecksumMismatches(t *testing.T) {
 }
 
 func TestLoadNextValidIndexChecksumBatch(t *testing.T) {
-	inStream := buildDataInputStreamIdxChecksum([]ident.IndexChecksumBlock{
+	inStream := buildDataInputStream([]ident.IndexChecksumBlock{
 		{Checksums: []uint32{}, Marker: []byte("aaa")},
 		{Checksums: []uint32{3, 4}, Marker: []byte("foo")},
 	})
@@ -250,7 +184,7 @@ func TestLoadNextValidIndexChecksumBatch(t *testing.T) {
 	assert.False(t, hasNext)
 	assert.Equal(t, 0, len(bl.Checksums))
 	assert.Equal(t, 0, len(bl.Marker))
-	assertClosedIdxChecksum(t, inStream)
+	assertClosed(t, inStream)
 }
 
 func TestLoadNextWithExhaustedInput(t *testing.T) {
@@ -273,7 +207,7 @@ func TestLoadNextWithExhaustedInput(t *testing.T) {
 }
 
 func TestLoadNextValidIndexHashBlockValid(t *testing.T) {
-	inStream := buildDataInputStreamIdxChecksum([]ident.IndexChecksumBlock{
+	inStream := buildDataInputStream([]ident.IndexChecksumBlock{
 		{Checksums: []uint32{1, 2}, Marker: []byte("zztop")},
 	})
 	reader := newEntryReaders(idxEntry(10, "abc"))
@@ -302,7 +236,7 @@ func TestLoadNextValidIndexHashBlockSkipThenValid(t *testing.T) {
 		Checksums: []uint32{3, 4},
 	}
 
-	inStream := buildDataInputStreamIdxChecksum([]ident.IndexChecksumBlock{bl1, bl2})
+	inStream := buildDataInputStream([]ident.IndexChecksumBlock{bl1, bl2})
 	reader := newEntryReaders(idxEntry(10, "abc"))
 	require.True(t, reader.next())
 
@@ -334,7 +268,7 @@ func TestLoadNextValidIndexHashBlockSkipsExhaustive(t *testing.T) {
 		Checksums: []uint32{3, 4},
 	}
 
-	inStream := buildDataInputStreamIdxChecksum([]ident.IndexChecksumBlock{bl1, bl2})
+	inStream := buildDataInputStream([]ident.IndexChecksumBlock{bl1, bl2})
 	reader := newEntryReaders(idxEntry(10, "zztop"), idxEntry(0, "zzz"))
 	require.True(t, reader.next())
 
@@ -358,7 +292,7 @@ func TestLoadNextValidIndexHashBlockSkipsExhaustive(t *testing.T) {
 }
 
 func TestLoadNextValidIndexHashBlockLastElementMatch(t *testing.T) {
-	inStream := buildDataInputStreamIdxChecksum([]ident.IndexChecksumBlock{{
+	inStream := buildDataInputStream([]ident.IndexChecksumBlock{{
 		Marker:    []byte("abc"),
 		Checksums: []uint32{1, 2, 3},
 	}})
@@ -395,7 +329,7 @@ func TestLoadNextValidIndexHashBlock(t *testing.T) {
 		Checksums: []uint32{6, 7},
 	}
 
-	inStream := buildDataInputStreamIdxChecksum([]ident.IndexChecksumBlock{bl1, bl2, bl3})
+	inStream := buildDataInputStream([]ident.IndexChecksumBlock{bl1, bl2, bl3})
 	reader := newEntryReaders(idxEntry(5, "b"), idxEntry(10, "c"))
 	require.True(t, reader.next())
 
@@ -437,7 +371,7 @@ func TestMergeHelper(t *testing.T) {
 		Checksums: []uint32{1},
 	}
 
-	inStream := buildDataInputStreamIdxChecksum([]ident.IndexChecksumBlock{
+	inStream := buildDataInputStream([]ident.IndexChecksumBlock{
 		bl1, bl2, bl3, bl4})
 	mismatched := entry{
 		entry: schema.IndexEntry{
@@ -458,7 +392,7 @@ func TestMergeHelper(t *testing.T) {
 		{Checksum: 4},
 		// Value at 5 matches, not in output.
 		// Value at 6 is a DATA_MISMATCH
-		ReadMismatch{Type: MismatchData, Checksum: 88, ID: ident.StringID("mismatch")},
+		ReadMismatch{Checksum: 88, ID: ident.StringID("mismatch")},
 		// Value at 10 only on secondary.
 		mismatch(MismatchOnlyOnSecondary, 7, []byte("qux")),
 		// Value at 7 only on primary.
@@ -467,13 +401,13 @@ func TestMergeHelper(t *testing.T) {
 	defer wg.Wait()
 
 	w := newStreamMismatchWriter(instrument.NewOptions())
-	err := w.mergeIdxChecksum(inStream, reader, outStream)
+	err := w.merge(inStream, reader, outStream)
 	require.NoError(t, err)
-	assertClosedIdxChecksum(t, inStream)
+	assertClosed(t, inStream)
 }
 
 func TestMergeIntermittentBlock(t *testing.T) {
-	inStream := buildDataInputStreamIdxChecksum([]ident.IndexChecksumBlock{{
+	inStream := buildDataInputStream([]ident.IndexChecksumBlock{{
 		Marker:    []byte("z"),
 		Checksums: []uint32{1, 2, 3, 4},
 	}})
@@ -490,9 +424,9 @@ func TestMergeIntermittentBlock(t *testing.T) {
 	defer wg.Wait()
 
 	w := newStreamMismatchWriter(instrument.NewOptions())
-	err := w.mergeIdxChecksum(inStream, reader, outStream)
+	err := w.merge(inStream, reader, outStream)
 	require.NoError(t, err)
-	assertClosedIdxChecksum(t, inStream)
+	assertClosed(t, inStream)
 }
 
 func TestMergeIntermittentBlockMismatch(t *testing.T) {
@@ -501,7 +435,7 @@ func TestMergeIntermittentBlockMismatch(t *testing.T) {
 		Checksums: []uint32{1, 2, 3, 4},
 	}
 
-	inStream := buildDataInputStreamIdxChecksum([]ident.IndexChecksumBlock{bl})
+	inStream := buildDataInputStream([]ident.IndexChecksumBlock{bl})
 	reader := newEntryReaders(
 		idxEntry(2, "n"),
 		idxEntry(5, "z"),
@@ -514,9 +448,9 @@ func TestMergeIntermittentBlockMismatch(t *testing.T) {
 	defer wg.Wait()
 
 	w := newStreamMismatchWriter(instrument.NewOptions())
-	err := w.mergeIdxChecksum(inStream, reader, outStream)
+	err := w.merge(inStream, reader, outStream)
 	require.NoError(t, err)
-	assertClosedIdxChecksum(t, inStream)
+	assertClosed(t, inStream)
 }
 
 func TestMergeTrailingBlock(t *testing.T) {
@@ -530,7 +464,7 @@ func TestMergeTrailingBlock(t *testing.T) {
 		Checksums: []uint32{3, 5},
 	}
 
-	inStream := buildDataInputStreamIdxChecksum([]ident.IndexChecksumBlock{bl1, bl2})
+	inStream := buildDataInputStream([]ident.IndexChecksumBlock{bl1, bl2})
 	reader := newEntryReaders(
 		idxEntry(1, "a"),
 		idxEntry(4, "w"),
@@ -545,9 +479,9 @@ func TestMergeTrailingBlock(t *testing.T) {
 	defer wg.Wait()
 
 	w := newStreamMismatchWriter(instrument.NewOptions())
-	err := w.mergeIdxChecksum(inStream, reader, outStream)
+	err := w.merge(inStream, reader, outStream)
 	require.NoError(t, err)
-	assertClosedIdxChecksum(t, inStream)
+	assertClosed(t, inStream)
 }
 
 func TestMerge(t *testing.T) {
@@ -571,7 +505,7 @@ func TestMerge(t *testing.T) {
 		Checksums: []uint32{11, 15},
 	}
 
-	inStream := buildDataInputStreamIdxChecksum([]ident.IndexChecksumBlock{bl1, bl2, bl3, bl4})
+	inStream := buildDataInputStream([]ident.IndexChecksumBlock{bl1, bl2, bl3, bl4})
 	missEntry := idxEntry(3, "c")
 	missEntry.idChecksum = 100
 	reader := newEntryReaders(
@@ -585,7 +519,7 @@ func TestMerge(t *testing.T) {
 	)
 	outStream, wg := buildExpectedOutputStream(t, []ReadMismatch{
 		{Checksum: 2},
-		ReadMismatch{Type: MismatchData, Checksum: 100, ID: ident.StringID("c")},
+		ReadMismatch{Checksum: 100, ID: ident.StringID("c")},
 		{Checksum: 4},
 		{Checksum: 5},
 		{Checksum: 6},
@@ -595,18 +529,18 @@ func TestMerge(t *testing.T) {
 	defer wg.Wait()
 
 	w := newStreamMismatchWriter(instrument.NewOptions())
-	err := w.mergeIdxChecksum(inStream, reader, outStream)
+	err := w.merge(inStream, reader, outStream)
 	require.NoError(t, err)
-	assertClosedIdxChecksum(t, inStream)
+	assertClosed(t, inStream)
 }
 
 func TestMergeIntermittentBlockJagged(t *testing.T) {
-	bl := ident.IndexHashBlock{
-		Marker:      []byte("z"),
-		IndexHashes: []ident.IndexHash{idxHash(1), idxHash(2), idxHash(4), idxHash(6)},
+	bl := ident.IndexChecksumBlock{
+		Marker:    []byte("z"),
+		Checksums: []uint32{1, 2, 4, 6},
 	}
 
-	inStream := buildDataInputStream([]ident.IndexHashBlock{bl})
+	inStream := buildDataInputStream([]ident.IndexChecksumBlock{bl})
 	reader := newEntryReaders(
 		idxEntry(1, "b"),
 		idxEntry(3, "f"),
@@ -624,5 +558,6 @@ func TestMergeIntermittentBlockJagged(t *testing.T) {
 
 	w := newStreamMismatchWriter(instrument.NewOptions())
 	err := w.merge(inStream, reader, outStream)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+	assertClosed(t, inStream)
 }

@@ -302,7 +302,8 @@ func TestDatabaseIndexHashNamespaceNotOwned(t *testing.T) {
 	defer func() {
 		close(mapCh)
 	}()
-	_, err := d.IndexHashes(ctx, ident.StringID("nonexistent"), ident.StringID("foo"), time.Now(), time.Now())
+	_, err := d.IndexChecksum(ctx, ident.StringID("nonexistent"),
+		ident.StringID("foo"), true, time.Now())
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
 
@@ -323,12 +324,18 @@ func TestDatabaseIndexHashNamespaceOwned(t *testing.T) {
 	end := time.Now()
 	start := end.Add(-time.Hour)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
-	bl := ident.IndexHashBlock{IDHash: 100}
-	mockNamespace.EXPECT().IndexHashes(ctx, id, start, end).Return(bl, nil)
+	mockNamespace.EXPECT().IndexChecksum(ctx, id, true, start).
+		Return(ident.IndexChecksumBlock{Marker: []byte("foo")}, nil)
+	mockNamespace.EXPECT().IndexChecksum(ctx, id, false, start).
+		Return(ident.IndexChecksumBlock{Marker: []byte("bar")}, nil)
 	d.namespaces.Set(ns, mockNamespace)
 
-	res, err := d.IndexHashes(ctx, ns, id, start, end)
-	require.Equal(t, 100, int(res.IDHash))
+	res, err := d.IndexChecksum(ctx, ns, id, true, start)
+	require.Equal(t, "foo", string(res.Marker))
+	require.Nil(t, err)
+
+	res, err = d.IndexChecksum(ctx, ns, id, false, start)
+	require.Equal(t, "bar", string(res.Marker))
 	require.Nil(t, err)
 }
 

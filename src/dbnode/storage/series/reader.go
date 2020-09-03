@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/block"
@@ -204,78 +203,56 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 	return results, nil
 }
 
-// IndexHashes reads index haches blocks using just a block retriever.
-func (r Reader) IndexHashes(
+// IndexChecksum reads index checksum blocks using just a block retriever.
+func (r Reader) IndexChecksum(
 	ctx context.Context,
-	start, end time.Time,
+	start time.Time,
+	useID bool,
 	nsCtx namespace.Context,
-) (ident.IndexHashBlock, error) {
-	return r.indexHashes(ctx, start, end, nsCtx)
+) (ident.IndexChecksumBlock, error) {
+	return r.indexChecksum(ctx, start, useID, nsCtx)
 }
 
-func (r Reader) indexHashes(
+func (r Reader) indexChecksum(
 	ctx context.Context,
-	start, end time.Time,
+	start time.Time,
+	useID bool,
 	nsCtx namespace.Context,
-) (ident.IndexHashBlock, error) {
-	if end.Before(start) {
-		return ident.IndexHashBlock{}, xerrors.NewInvalidParamsError(errSeriesReadInvalidRange)
-	}
-
+) (ident.IndexChecksumBlock, error) {
 	var (
 		nowFn        = r.opts.ClockOptions().NowFn()
 		now          = nowFn()
 		ropts        = r.opts.RetentionOptions()
 		size         = ropts.BlockSize()
 		alignedStart = start.Truncate(size)
-		alignedEnd   = end.Truncate(size)
 	)
-
-	if alignedEnd.Equal(end) {
-		// Move back to make range [start, end)
-		alignedEnd = alignedEnd.Add(-1 * size)
-	}
-
 	// Squeeze the lookup window by what's available to make range queries like [0, infinity) possible
 	earliest := retention.FlushTimeStart(ropts, now)
 	if alignedStart.Before(earliest) {
 		alignedStart = earliest
 	}
-	latest := now.Add(ropts.BufferFuture()).Truncate(size)
-	if alignedEnd.After(latest) {
-		alignedEnd = latest
+
+	if r.retriever == nil {
+		return ident.IndexChecksumBlock{}, nil
+	}
+	// Try to stream from disk
+	isRetrievable, err := r.retriever.IsBlockRetrievable(alignedStart)
+	if err != nil {
+		return ident.IndexChecksumBlock{}, err
+	} else if !isRetrievable {
+		return ident.IndexChecksumBlock{}, nil
+	}
+	fmt.Println(ctx, r.id, alignedStart, nsCtx)
+	streamedBlock, found, err := r.retriever.StreamIndexChecksum(ctx,
+		r.id, useID, alignedStart, nsCtx)
+	if err != nil {
+		return ident.IndexChecksumBlock{}, err
+	}
+	if !found {
+		return ident.IndexChecksumBlock{}, nil
 	}
 
-	first, last := alignedStart, alignedEnd
-	var indexHashes []ident.IndexHash
-	for blockAt := first; !blockAt.After(last); blockAt = blockAt.Add(size) {
-		if r.retriever == nil {
-			continue
-		}
-		// Try to stream from disk
-		isRetrievable, err := r.retriever.IsBlockRetrievable(blockAt)
-		if err != nil {
-			return ident.IndexHashBlock{}, err
-		} else if !isRetrievable {
-			continue
-		}
-
-		streamedBlock, found, err := r.retriever.StreamIndexHash(ctx, r.id, blockAt, nsCtx)
-		if err != nil {
-			return ident.IndexHashBlock{}, err
-		}
-		if !found {
-			continue
-		}
-
-		streamedBlock.BlockStart = blockAt
-		indexHashes = append(indexHashes, streamedBlock)
-	}
-
-	return ident.IndexHashBlock{
-		IDHash:      xxhash.Sum64(r.id.Bytes()),
-		IndexHashes: indexHashes,
-	}, nil
+	return streamedBlock, nil
 }
 
 // FetchBlocks returns data blocks given a list of block start times using

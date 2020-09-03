@@ -281,19 +281,19 @@ func (r *blockRetriever) fetchLoop(seekerMgr DataFileSetSeekerManager) {
 	r.fetchLoopsHaveShutdownCh <- struct{}{}
 }
 
-func (r *blockRetriever) processIndexHashRequest(
+func (r *blockRetriever) processIndexChecksumRequest(
 	req *retrieveRequest,
 	seeker ConcurrentDataFileSetSeeker,
 	seekerResources ReusableSeekerResources,
 ) {
-	entry, err := seeker.SeekIndexEntryToIndexHash(req.id, seekerResources)
+	entry, err := seeker.SeekIndexEntryToIndexChecksum(req.id,
+		req.useID, seekerResources)
 	if err != nil && err != errSeekIDNotFound {
 		req.onError(err)
 		return
 	}
 
-	entry.BlockStart = req.start
-	req.onIndexHashCompleted(entry)
+	req.onIndexChecksumCompleted(entry)
 }
 
 func (r *blockRetriever) fetchBatch(
@@ -317,8 +317,8 @@ func (r *blockRetriever) fetchBatch(
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
 	for _, req := range reqs {
-		if req.reqType == streamHashIndexReq {
-			r.processIndexHashRequest(req, seeker, seekerResources)
+		if req.reqType == streamIdxChecksumReq {
+			r.processIndexChecksumRequest(req, seeker, seekerResources)
 			continue
 		}
 
@@ -488,13 +488,14 @@ func (r *blockRetriever) Stream(
 	return req.toBlock(), nil
 }
 
-func (r *blockRetriever) StreamIndexHash(
+func (r *blockRetriever) StreamIndexChecksum(
 	ctx context.Context,
 	shard uint32,
 	id ident.ID,
+	useID bool,
 	startTime time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexHash, bool, error) {
+) (ident.IndexChecksumBlock, bool, error) {
 	req := r.reqPool.Get()
 	req.shard = shard
 	// NB(r): Clone the ID as we're not positive it will stay valid throughout
@@ -503,7 +504,8 @@ func (r *blockRetriever) StreamIndexHash(
 	req.start = startTime
 	req.blockSize = r.blockSize
 
-	req.reqType = streamHashIndexReq
+	req.reqType = streamIdxChecksumReq
+	req.useID = useID
 	req.resultWg.Add(1)
 
 	// Ensure to finalize at the end of request
@@ -515,24 +517,24 @@ func (r *blockRetriever) StreamIndexHash(
 	// This should never happen unless caller tries to use Stream() before Open()
 	if r.seekerMgr == nil {
 		r.RUnlock()
-		return ident.IndexHash{}, false, errNoSeekerMgr
+		return ident.IndexChecksumBlock{}, false, errNoSeekerMgr
 	}
 	r.RUnlock()
 
 	idExists, err := r.seekerMgr.Test(id, shard, startTime)
 	if err != nil {
-		return ident.IndexHash{}, false, err
+		return ident.IndexChecksumBlock{}, false, err
 	}
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately.
 	if !idExists {
-		return ident.IndexHash{}, false, nil
+		return ident.IndexChecksumBlock{}, false, nil
 	}
 
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
-		return ident.IndexHash{}, false, err
+		return ident.IndexChecksumBlock{}, false, err
 	}
 
 	reqs.Lock()
@@ -551,12 +553,12 @@ func (r *blockRetriever) StreamIndexHash(
 	// the data. This means that even though we're returning nil for error
 	// here, the caller may still encounter an error when they attempt to
 	// read the data.
-	hash, err := req.waitForIndexHash()
+	checksum, err := req.waitForIndexChecksum()
 	if err != nil {
-		return ident.IndexHash{}, false, err
+		return ident.IndexChecksumBlock{}, false, err
 	}
 
-	return hash, true, nil
+	return checksum, true, nil
 }
 
 func (req *retrieveRequest) toBlock() xio.BlockReader {
@@ -652,7 +654,7 @@ type reqType uint8
 
 const (
 	streamReq reqType = iota
-	streamHashIndexReq
+	streamIdxChecksumReq
 )
 
 // Don't forget to update the resetForReuse method when adding a new field
@@ -668,10 +670,11 @@ type retrieveRequest struct {
 	onRetrieve block.OnRetrieveBlock
 	nsCtx      namespace.Context
 
-	reqType    reqType
-	indexEntry IndexEntry
-	indexHash  ident.IndexHash
-	reader     xio.SegmentReader
+	reqType       reqType
+	indexEntry    IndexEntry
+	indexChecksum ident.IndexChecksumBlock
+	useID         bool
+	reader        xio.SegmentReader
 
 	err error
 
@@ -684,20 +687,21 @@ type retrieveRequest struct {
 	notFound bool
 }
 
-func (req *retrieveRequest) onIndexHashCompleted(indexHash ident.IndexHash) {
+func (req *retrieveRequest) onIndexChecksumCompleted(
+	indexChecksum ident.IndexChecksumBlock) {
 	if req.err == nil {
-		req.indexHash = indexHash
+		req.indexChecksum = indexChecksum
 		// If there was an error, we've already called done.
 		req.resultWg.Done()
 	}
 }
 
-func (req *retrieveRequest) waitForIndexHash() (ident.IndexHash, error) {
+func (req *retrieveRequest) waitForIndexChecksum() (ident.IndexChecksumBlock, error) {
 	req.resultWg.Wait()
 	if req.err != nil {
-		return ident.IndexHash{}, req.err
+		return ident.IndexChecksumBlock{}, req.err
 	}
-	return req.indexHash, nil
+	return req.indexChecksum, nil
 }
 
 func (req *retrieveRequest) onError(err error) {
@@ -801,7 +805,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.onRetrieve = nil
 	req.reqType = streamReq
 	req.indexEntry = IndexEntry{}
-	req.indexHash = ident.IndexHash{}
+	req.indexChecksum = ident.IndexChecksumBlock{}
 	req.reader = nil
 	req.err = nil
 	req.notFound = false

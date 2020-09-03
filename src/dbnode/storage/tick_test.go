@@ -165,8 +165,8 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 		}),
 		namespace.EXPECT().Tick(c, gomock.Any()),
 	)
-	db := newMockdatabase(ctrl, namespace)
 
+	db := newMockdatabase(ctrl, namespace)
 	tm := newTickManager(db, opts).(*tickManager)
 	tm.c = c
 	tm.sleepFn = func(time.Duration) {}

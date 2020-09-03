@@ -104,7 +104,7 @@ var (
 type serviceMetrics struct {
 	fetch                   instrument.MethodMetrics
 	fetchTagged             instrument.MethodMetrics
-	indexHash               instrument.MethodMetrics
+	indexChecksum           instrument.MethodMetrics
 	aggregate               instrument.MethodMetrics
 	write                   instrument.MethodMetrics
 	writeTagged             instrument.MethodMetrics
@@ -125,7 +125,7 @@ func newServiceMetrics(scope tally.Scope, opts instrument.TimerOptions) serviceM
 	return serviceMetrics{
 		fetch:                   instrument.NewMethodMetrics(scope, "fetch", opts),
 		fetchTagged:             instrument.NewMethodMetrics(scope, "fetchTagged", opts),
-		indexHash:               instrument.NewMethodMetrics(scope, "indexHash", opts),
+		indexChecksum:           instrument.NewMethodMetrics(scope, "indexChecksum", opts),
 		aggregate:               instrument.NewMethodMetrics(scope, "aggregate", opts),
 		write:                   instrument.NewMethodMetrics(scope, "write", opts),
 		writeTagged:             instrument.NewMethodMetrics(scope, "writeTagged", opts),
@@ -876,7 +876,7 @@ func (s *service) IndexHash(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*
 	}
 	defer s.readRPCCompleted()
 
-	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.IndexHash)
+	ctx, sp, sampled := tchannelthrift.Context(tctx).StartSampledTraceSpan(tracepoint.IndexChecksum)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("query", string(req.Query)),
@@ -900,14 +900,14 @@ func (s *service) indexHash(ctx context.Context, db storage.Database, req *rpc.F
 
 	ns, query, opts, _, err := convert.FromRPCFetchTaggedRequest(req, s.pools)
 	if err != nil {
-		s.metrics.indexHash.ReportError(s.nowFn().Sub(callStart))
+		s.metrics.indexChecksum.ReportError(s.nowFn().Sub(callStart))
 		return nil, tterrors.NewBadRequestError(err)
 	}
 
-	opts = opts.ToIndexHashQueryOptions()
+	opts = opts.ToIndexChecksumQueryOptions(s.opts.BatchSize())
 	queryResult, err := db.QueryIDs(ctx, ns, query, opts)
 	if err != nil {
-		s.metrics.indexHash.ReportError(s.nowFn().Sub(callStart))
+		s.metrics.indexChecksum.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
 
@@ -918,11 +918,11 @@ func (s *service) indexHash(ctx context.Context, db storage.Database, req *rpc.F
 
 	nsID := results.Namespace()
 	if err := s.indexHashSingle(ctx, db, response, results, nsID, opts); err != nil {
-		s.metrics.indexHash.ReportError(s.nowFn().Sub(callStart))
+		s.metrics.indexChecksum.ReportError(s.nowFn().Sub(callStart))
 		return nil, err
 	}
 
-	s.metrics.indexHash.ReportSuccess(s.nowFn().Sub(callStart))
+	s.metrics.indexChecksum.ReportSuccess(s.nowFn().Sub(callStart))
 	return response, nil
 }
 
@@ -933,7 +933,7 @@ func (s *service) indexHashSingle(ctx context.Context,
 	nsID ident.ID,
 	opts index.QueryOptions,
 ) error {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.IndexHashSingleResult)
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.IndexChecksumSingleResult)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("id", nsID.String()),
@@ -942,12 +942,16 @@ func (s *service) indexHashSingle(ctx context.Context,
 	defer sp.Finish()
 
 	i := 0
+	count := results.Map().Len()
 	for _, entry := range results.Map().Iter() {
 		i++
 
+		// if last element of the batch or last element in the result set,
+		// include ID as a batch marker.
+		useID := i%opts.BatchSize == 0 || i == count-1
 		tsID := entry.Key()
-		idxHash, err := db.IndexHashes(ctx, nsID, tsID,
-			opts.StartInclusive, opts.EndExclusive)
+		checksum, err := db.IndexChecksum(ctx, nsID, tsID, useID,
+			opts.StartInclusive)
 
 		if err != nil {
 			response.Blocks = append(response.Blocks, &rpc.IndexHashListForBlock{
@@ -958,7 +962,7 @@ func (s *service) indexHashSingle(ctx context.Context,
 
 		// TODO: consider pooling these.
 		hashResults := make([]*rpc.IndexHashResultElement, 0, len(idxHash.IndexHashes))
-		for _, h := range idxHash.IndexHashes {
+		for _, h := range checksum.Checksums {
 			hashResults = append(hashResults, &rpc.IndexHashResultElement{
 				BlockStart:   h.BlockStart.UnixNano(),
 				DataChecksum: int64(h.DataChecksum),

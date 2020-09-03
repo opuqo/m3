@@ -1605,7 +1605,7 @@ func TestShardStreamIndexHash(t *testing.T) {
 	shard.setBlockRetriever(retriever)
 
 	mid := start.Add(ropts.BlockSize())
-	indexHashes := []ident.IndexHash{
+	indexChecksums := ident.IndexChecksumBlock{
 		ident.IndexHash{DataChecksum: 1, BlockStart: start},
 		ident.IndexHash{DataChecksum: 2, BlockStart: mid},
 	}

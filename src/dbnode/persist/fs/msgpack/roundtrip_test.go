@@ -51,15 +51,16 @@ var (
 		MinorVersion: schema.MinorVersion,
 	}
 
-	testIndexEntry = schema.IndexEntry{
-		Index:        234,
-		ID:           []byte("testIndexEntry"),
-		Size:         5456,
-		Offset:       2390423,
-		DataChecksum: 134245634534,
-		EncodedTags:  []byte("testEncodedTags"),
+	testIndexEntryChecksum = uint32(2611877657)
+	testIndexEntry         = schema.IndexEntry{
+		Index:         234,
+		ID:            []byte("testIndexEntry"),
+		Size:          5456,
+		Offset:        2390423,
+		DataChecksum:  134245634534,
+		IndexChecksum: testIndexEntryChecksum,
+		EncodedTags:   []byte("testEncodedTags"),
 	}
-	testIndexEntryChecksum = int64(2611877657)
 
 	testIndexSummary = schema.IndexSummary{
 		Index:            234,
@@ -67,9 +68,13 @@ var (
 		IndexEntryOffset: 2390423,
 	}
 
-	testIndexHash = schema.IndexHash{
-		ID:           testIndexEntry.ID,
-		DataChecksum: testIndexEntry.DataChecksum,
+	testIndexChecksum = schema.IndexEntry{
+		ID:            testIndexEntry.ID,
+		IndexChecksum: testIndexEntryChecksum,
+	}
+
+	testIndexChecksumNoID = schema.IndexEntry{
+		IndexChecksum: testIndexEntryChecksum,
 	}
 
 	testLogInfo = schema.LogInfo{
@@ -398,16 +403,19 @@ func TestIndexEntryIntoIndexHashRoundtripWithBytesPool(t *testing.T) {
 
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	res, err := dec.DecodeIndexEntryToIndexHash(pool)
+	res, err := dec.DecodeIndexEntryToIndexChecksum(true, pool)
 	require.NoError(t, err)
-	require.Equal(t, testIndexHash, res)
+	require.Equal(t, testIndexChecksum, res)
 }
+
 func TestIndexEntryRoundtripWithBytesPool(t *testing.T) {
 	var (
 		pool = pool.NewBytesPool(nil, nil)
-		enc  = NewEncoder()
-		dec  = NewDecoder(nil)
+
+		enc = NewEncoder()
+		dec = NewDecoder(nil)
 	)
+
 	pool.Init()
 
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
@@ -417,15 +425,16 @@ func TestIndexEntryRoundtripWithBytesPool(t *testing.T) {
 	require.Equal(t, testIndexEntry, res)
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	indexHash, err := dec.DecodeIndexEntryToIndexHash(pool)
+	indexHash, err := dec.DecodeIndexEntryToIndexChecksum(true, pool)
 	require.NoError(t, err)
-	require.Equal(t, testIndexHash, indexHash)
+	require.Equal(t, testIndexChecksum, indexHash)
 }
 
 // Make sure the V3 decoding code can handle the V1 file format.
 func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	var (
-		opts = LegacyEncodingOptions{EncodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV1,
+		opts = LegacyEncodingOptions{
+			EncodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV1,
 			DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionCurrent}
 		enc = newEncoder(opts)
 		dec = newDecoder(opts, nil)
@@ -444,23 +453,27 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	}()
 
 	enc.EncodeIndexEntry(testIndexEntry)
-	dec.Reset(NewByteDecoderStream(enc.Bytes()))
+	bytes := enc.Bytes()
+	cloned := append(make([]byte, 0, len(bytes)), bytes...)
+	dec.Reset(NewByteDecoderStream(bytes))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
-	require.Equal(t, testIndexEntry, res)
+	expected := testIndexEntry
+	expected.IndexChecksum = 0
+	require.Equal(t, expected, res)
 
-	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	indexHash, err := dec.DecodeIndexEntryToIndexHash(nil)
-	require.NoError(t, err)
-	require.Equal(t, testIndexHash, indexHash)
+	dec.Reset(NewByteDecoderStream(cloned))
+	_, err = dec.DecodeIndexEntryToIndexChecksum(true, nil)
+	require.Error(t, err)
 }
 
 // Make sure the V1 decoder code can handle the V3 file format.
 func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 	var (
-		opts = LegacyEncodingOptions{DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV1}
-		enc  = newEncoder(opts)
-		dec  = newDecoder(opts, nil)
+		opts = LegacyEncodingOptions{
+			DecodeLegacyIndexEntryVersion: LegacyEncodingIndexEntryVersionV1}
+		enc = newEncoder(opts)
+		dec = newDecoder(opts, nil)
 	)
 
 	// Set the default values on the fields that did not exist in V1
@@ -472,20 +485,22 @@ func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 
 	// Make sure to zero them before we compare, but after we have
 	// encoded the data.
-	testIndexEntry.EncodedTags = nil
+	expected := testIndexEntry
+	expected.EncodedTags = nil
 	defer func() {
-		testIndexEntry.EncodedTags = currEncodedTags
+		expected.EncodedTags = currEncodedTags
 	}()
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
-	require.Equal(t, testIndexEntry, res)
+
+	expected.IndexChecksum = 0
+	require.Equal(t, expected, res)
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	indexHash, err := dec.DecodeIndexEntryToIndexHash(nil)
-	require.NoError(t, err)
-	require.Equal(t, testIndexHash, indexHash)
+	_, err = dec.DecodeIndexEntryToIndexChecksum(true, nil)
+	require.Error(t, err)
 }
 
 // Make sure the V3 decoding code can handle the V2 file format.
@@ -505,12 +520,13 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV2(t *testing.T) {
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
-	require.Equal(t, testIndexEntry, res)
+	expected := testIndexEntry
+	expected.IndexChecksum = 0
+	require.Equal(t, expected, res)
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	indexHash, err := dec.DecodeIndexEntryToIndexHash(nil)
-	require.NoError(t, err)
-	require.Equal(t, testIndexHash, indexHash)
+	_, err = dec.DecodeIndexEntryToIndexChecksum(true, nil)
+	require.Error(t, err)
 }
 
 // Make sure the V2 decoder code can handle the V3 file format.
@@ -529,12 +545,13 @@ func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
-	require.Equal(t, testIndexEntry, res)
+	expected := testIndexEntry
+	expected.IndexChecksum = 0
+	require.Equal(t, expected, res)
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	indexHash, err := dec.DecodeIndexEntryToIndexHash(nil)
-	require.NoError(t, err)
-	require.Equal(t, testIndexHash, indexHash)
+	_, err = dec.DecodeIndexEntryToIndexChecksum(true, nil)
+	require.Error(t, err)
 }
 
 func TestIndexSummaryRoundtrip(t *testing.T) {
@@ -604,34 +621,41 @@ func TestLogMetadataRoundtrip(t *testing.T) {
 
 func TestMultiTypeRoundtripStress(t *testing.T) {
 	var (
-		enc    = NewEncoder()
-		dec    = NewDecoder(nil)
-		iter   = 10000
-		res    interface{}
-		err    error
-		input  []interface{}
-		output []interface{}
+		enc      = NewEncoder()
+		dec      = NewDecoder(nil)
+		iter     = 10000
+		res      interface{}
+		err      error
+		input    []interface{}
+		expected []interface{}
+		output   []interface{}
 	)
 	for i := 0; i < iter; i++ {
 		switch i % 6 {
 		case 0:
 			require.NoError(t, enc.EncodeIndexInfo(testIndexInfo))
 			input = append(input, testIndexInfo)
+			expected = append(expected, testIndexInfo)
 		case 1:
 			require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
 			input = append(input, testIndexEntry)
+			expected = append(expected, testIndexEntry)
 		case 2:
 			require.NoError(t, enc.EncodeLogInfo(testLogInfo))
 			input = append(input, testLogInfo)
+			expected = append(expected, testLogInfo)
 		case 3:
 			require.NoError(t, enc.EncodeLogEntry(testLogEntry))
 			input = append(input, testLogEntry)
+			expected = append(expected, testLogEntry)
 		case 4:
 			require.NoError(t, enc.EncodeLogMetadata(testLogMetadata))
 			input = append(input, testLogMetadata)
+			expected = append(expected, testLogMetadata)
 		case 5:
 			require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
-			input = append(input, testIndexHash)
+			input = append(input, testIndexEntry)
+			expected = append(expected, testIndexChecksum)
 		}
 	}
 
@@ -649,11 +673,11 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 		case 4:
 			res, err = dec.DecodeLogMetadata()
 		case 5:
-			res, err = dec.DecodeIndexEntryToIndexHash(nil)
+			res, err = dec.DecodeIndexEntryToIndexChecksum(true, nil)
 		}
 		require.NoError(t, err)
 		output = append(output, res)
 	}
 
-	require.Equal(t, input, output)
+	require.Equal(t, expected, output)
 }

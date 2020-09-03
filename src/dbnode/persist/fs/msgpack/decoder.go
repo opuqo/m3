@@ -37,7 +37,7 @@ var (
 	emptyIndexSummariesInfo     schema.IndexSummariesInfo
 	emptyIndexBloomFilterInfo   schema.IndexBloomFilterInfo
 	emptyIndexEntry             schema.IndexEntry
-	emptyIndexHash              schema.IndexHash
+	emptyIndexChecksumEntry     schema.IndexEntry
 	emptyIndexSummary           schema.IndexSummary
 	emptyIndexSummaryToken      IndexSummaryToken
 	emptyLogInfo                schema.LogInfo
@@ -133,20 +133,33 @@ func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool) (schema.IndexEntr
 	return indexEntry, nil
 }
 
-// DecodeIndexEntryToIndexHash decodes an index entry into an IndexHash.
-func (dec *Decoder) DecodeIndexEntryToIndexHash(bytesPool pool.BytesPool) (schema.IndexHash, error) {
+// DecodeIndexEntryToIndexChecksum decodes an index entry into a minimal index entry.
+func (dec *Decoder) DecodeIndexEntryToIndexChecksum(
+	withID bool,
+	bytesPool pool.BytesPool,
+) (schema.IndexEntry, error) {
 	if dec.err != nil {
-		return emptyIndexHash, dec.err
+		return emptyIndexChecksumEntry, dec.err
 	}
-	dec.readerWithDigest.setDigestReaderEnabled(true)
+
 	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
-	indexHash := dec.decodeIndexHash(bytesPool)
+	skippableFields, actual, ok := dec.checkNumIndexFields()
+	if !ok {
+		return emptyIndexChecksumEntry, dec.err
+	}
+
+	if actual-skippableFields < 7 {
+		return emptyIndexChecksumEntry, errors.New("invalid entry file version")
+	}
+
+	dec.readerWithDigest.setDigestReaderEnabled(true)
+	indexChecksum := dec.decodeIndexChecksum(withID, actual, bytesPool)
 	dec.readerWithDigest.setDigestReaderEnabled(false)
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
-		return emptyIndexHash, dec.err
+		return emptyIndexChecksumEntry, dec.err
 	}
-	return indexHash, nil
+	return indexChecksum, nil
 }
 
 // DecodeIndexSummary decodes index summary.
@@ -373,7 +386,7 @@ func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 	return indexBloomFilterInfo
 }
 
-func (dec *Decoder) checkNumIndexFields() (numToSkip int, actual int, ok bool) {
+func (dec *Decoder) checkNumIndexFields() (int, int, bool) {
 	var opts checkNumFieldsOptions
 	switch dec.legacy.DecodeLegacyIndexEntryVersion {
 	case LegacyEncodingIndexEntryVersionV1:
@@ -447,41 +460,38 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 	actualChecksum := dec.readerWithDigest.digest().Sum32()
 
 	// Decode checksum field originally added in V3
-	expectedChecksum := uint32(dec.decodeVarint())
-
-	if expectedChecksum != actualChecksum {
+	v := dec.decodeVarint()
+	indexEntry.IndexChecksum = uint32(v)
+	if indexEntry.IndexChecksum != actualChecksum {
 		dec.err = errorIndexEntryChecksumMismatch
 	}
 
 	return indexEntry
 }
 
-func (dec *Decoder) decodeIndexHash(bytesPool pool.BytesPool) schema.IndexHash {
-	skip, actual, ok := dec.checkNumIndexFields()
-	if !ok {
-		return emptyIndexHash
-	}
-
-	var indexHash schema.IndexHash
+func (dec *Decoder) decodeIndexChecksum(
+	withID bool,
+	actual int,
+	bytesPool pool.BytesPool,
+) schema.IndexEntry {
+	var indexEntry schema.IndexEntry
 	// NB: don't need Index.
 	dec.skip(1)
-	if bytesPool == nil {
-		indexHash.ID, _, _ = dec.decodeBytes()
+	if !withID {
+		dec.skip(1)
 	} else {
-		indexHash.ID = dec.decodeBytesWithPool(bytesPool)
+		if bytesPool == nil {
+			indexEntry.ID, _, _ = dec.decodeBytes()
+		} else {
+			indexEntry.ID = dec.decodeBytesWithPool(bytesPool)
+		}
 	}
 
-	// NB: don't need Size or Offset.
-	dec.skip(2)
-	indexHash.DataChecksum = dec.decodeVarint()
-
-	// NB: skip to end.
-	dec.skip(skip)
-	if skipExtra := actual - 5 - skip; skipExtra > 0 {
-		dec.skip(skipExtra)
-	}
-
-	return indexHash
+	// NB: skip to last element, which is index checksum.
+	dec.skip(actual - 3)
+	a := dec.decodeVarint()
+	indexEntry.IndexChecksum = uint32(a)
+	return indexEntry
 }
 
 func (dec *Decoder) decodeIndexSummary() (schema.IndexSummary, IndexSummaryToken) {
@@ -610,8 +620,8 @@ type checkNumFieldsOptions struct {
 func (dec *Decoder) checkNumFieldsFor(
 	objType objectType,
 	opts checkNumFieldsOptions,
-) (numToSkip int, actual int, ok bool) {
-	actual = dec.decodeNumObjectFields()
+) (int, int, bool) {
+	actual := dec.decodeNumObjectFields()
 	if dec.err != nil {
 		return 0, 0, false
 	}
@@ -625,7 +635,7 @@ func (dec *Decoder) checkNumFieldsFor(
 		return 0, 0, false
 	}
 
-	numToSkip = actual - curr
+	numToSkip := actual - curr
 	if numToSkip < 0 {
 		numToSkip = 0
 	}

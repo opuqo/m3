@@ -33,7 +33,6 @@ import (
 	xtest "github.com/m3db/m3/src/x/test"
 	xtime "github.com/m3db/m3/src/x/time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/stretchr/testify/assert"
@@ -89,7 +88,7 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 	}
 }
 
-func TestReaderUsingRetrieverIndexHashes(t *testing.T) {
+func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -101,11 +100,10 @@ func TestReaderUsingRetrieverIndexHashes(t *testing.T) {
 
 	retriever := NewMockQueryableBlockRetriever(ctrl)
 	retriever.EXPECT().IsBlockRetrievable(start).Return(true, nil)
-	retriever.EXPECT().IsBlockRetrievable(start.Add(ropts.BlockSize())).Return(true, nil)
 
-	indexHashes := []ident.IndexHash{
-		ident.IndexHash{DataChecksum: 1, BlockStart: start},
-		ident.IndexHash{DataChecksum: 2, BlockStart: start.Add(ropts.BlockSize())},
+	indexChecksums := ident.IndexChecksumBlock{
+		Marker:    []byte("foo"),
+		Checksums: []uint32{1, 2, 3},
 	}
 
 	ctx := opts.ContextPool().Get()
@@ -114,22 +112,15 @@ func TestReaderUsingRetrieverIndexHashes(t *testing.T) {
 	retriever.EXPECT().
 		StreamIndexHash(ctx, ident.NewIDMatcher("foo"),
 			start, gomock.Any()).
-		Return(indexHashes[0], true, nil)
-	retriever.EXPECT().
-		StreamIndexHash(ctx, ident.NewIDMatcher("foo"),
-			start.Add(ropts.BlockSize()), gomock.Any()).
-		Return(indexHashes[1], true, nil)
+		Return(indexChecksums, true, nil)
 
 	reader := NewReaderUsingRetriever(
 		ident.StringID("foo"), retriever, nil, nil, opts)
 
 	// Check reads as expected
-	r, err := reader.IndexHashes(ctx, start, end, namespace.Context{})
+	r, err := reader.IndexChecksum(ctx, start, namespace.Context{})
 	require.NoError(t, err)
-
-	assert.Equal(t, xxhash.Sum64([]byte("foo")), r.IDHash)
-	require.Equal(t, 2, len(r.IndexHashes))
-	assert.Equal(t, indexHashes, r.IndexHashes)
+	assert.Equal(t, indexChecksums, r)
 }
 
 type readTestCase struct {

@@ -162,7 +162,7 @@ type databaseNamespaceMetrics struct {
 	fetchBlocks         instrument.MethodMetrics
 	fetchBlocksMetadata instrument.MethodMetrics
 	queryIDs            instrument.MethodMetrics
-	indexHash           instrument.MethodMetrics
+	indexChecksum       instrument.MethodMetrics
 	aggregateQuery      instrument.MethodMetrics
 	unfulfilled         tally.Counter
 	bootstrapStart      tally.Counter
@@ -245,7 +245,7 @@ func newDatabaseNamespaceMetrics(
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", opts),
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", opts),
 		queryIDs:            instrument.NewMethodMetrics(scope, "queryIDs", opts),
-		indexHash:           instrument.NewMethodMetrics(scope, "indexHash", opts),
+		indexChecksum:       instrument.NewMethodMetrics(scope, "indexChecksum", opts),
 		aggregateQuery:      instrument.NewMethodMetrics(scope, "aggregateQuery", opts),
 		unfulfilled:         scope.Counter("bootstrap.unfulfilled"),
 		bootstrapStart:      scope.Counter("bootstrap.start"),
@@ -864,18 +864,19 @@ func (n *dbNamespace) ReadEncoded(
 	return res, err
 }
 
-func (n *dbNamespace) IndexHashes(
+func (n *dbNamespace) IndexChecksum(
 	ctx context.Context,
 	id ident.ID,
-	start, end time.Time,
-) (ident.IndexHashBlock, error) {
+	useID bool,
+	start time.Time,
+) (ident.IndexChecksumBlock, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
 	if err != nil {
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
-		return ident.IndexHashBlock{}, err
+		return ident.IndexChecksumBlock{}, err
 	}
-	res, err := shard.IndexHashes(ctx, id, start, end, nsCtx)
+	res, err := shard.IndexChecksum(ctx, id, useID, start, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }

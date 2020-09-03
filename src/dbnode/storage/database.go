@@ -890,19 +890,20 @@ func (d *db) ReadEncoded(
 	return n.ReadEncoded(ctx, id, start, end)
 }
 
-func (d *db) IndexHashes(
+func (d *db) IndexChecksum(
 	ctx context.Context,
 	namespace ident.ID,
 	id ident.ID,
-	start, end time.Time,
-) (ident.IndexHashBlock, error) {
-	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexHash)
+	useID bool,
+	start time.Time,
+) (ident.IndexChecksumBlock, error) {
+	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexChecksum)
 	if sampled {
 		sp.LogFields(
 			opentracinglog.String("namespace", namespace.String()),
 			opentracinglog.String("id", id.String()),
+			opentracinglog.Bool("useID", useID),
 			xopentracing.Time("start", start),
-			xopentracing.Time("end", end),
 		)
 	}
 	defer sp.Finish()
@@ -910,10 +911,10 @@ func (d *db) IndexHashes(
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
-		return ident.IndexHashBlock{}, err
+		return ident.IndexChecksumBlock{}, err
 	}
 
-	return n.IndexHashes(ctx, id, start, end)
+	return n.IndexChecksum(ctx, id, useID, start)
 }
 
 func (d *db) FetchBlocks(

@@ -112,13 +112,14 @@ func (r *shardBlockRetriever) Stream(
 		blockStart, onRetrieve, nsCtx)
 }
 
-func (r *shardBlockRetriever) StreamIndexHash(
+func (r *shardBlockRetriever) StreamIndexChecksum(
 	ctx context.Context,
 	id ident.ID,
+	useID bool,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexHash, bool, error) {
-	return r.DatabaseBlockRetriever.StreamIndexHash(ctx, r.shard, id,
+) (ident.IndexChecksumBlock, bool, error) {
+	return r.DatabaseBlockRetriever.StreamIndexChecksum(ctx, r.shard, id, useID,
 		blockStart, nsCtx)
 }
 

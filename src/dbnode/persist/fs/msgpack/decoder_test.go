@@ -144,14 +144,16 @@ func TestDecodeIndexEntryMoreFieldsThanExpected(t *testing.T) {
 	// Strip checksum, add new field, add updated checksum
 	enc.buf.Truncate(len(enc.Bytes()) - 5)
 	require.NoError(t, enc.enc.EncodeInt64(1234))
-	require.NoError(t, enc.enc.EncodeInt64(int64(digest.Checksum(enc.Bytes()))))
+	checksum := int64(digest.Checksum(enc.Bytes()))
+	require.NoError(t, enc.enc.EncodeInt64(checksum))
+	expected := testIndexEntry
+	expected.IndexChecksum = uint32(checksum)
 
 	// Verify we can successfully skip unnecessary fields
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry(nil)
 	require.NoError(t, err)
-
-	require.Equal(t, testIndexEntry, res)
+	require.Equal(t, expected, res)
 }
 
 func TestDecodeLogInfoMoreFieldsThanExpected(t *testing.T) {
@@ -280,7 +282,7 @@ func TestDecodeIndexEntryInvalidChecksum(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestDecodeIndexEntryToIndexHash(t *testing.T) {
+func TestDecodeIndexEntryToIndexChecksum(t *testing.T) {
 	var (
 		enc = NewEncoder()
 		dec = NewDecoder(nil)
@@ -288,8 +290,14 @@ func TestDecodeIndexEntryToIndexHash(t *testing.T) {
 
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
 	data := enc.Bytes()
+	cloned := append(make([]byte, 0, len(data)), data...)
 	dec.Reset(NewByteDecoderStream(data))
-	res, err := dec.DecodeIndexEntryToIndexHash(nil)
+	res, err := dec.DecodeIndexEntryToIndexChecksum(false, nil)
 	require.NoError(t, err)
-	assert.Equal(t, testIndexHash, res)
+	assert.Equal(t, testIndexChecksumNoID, res)
+
+	dec.Reset(NewByteDecoderStream(cloned))
+	res, err = dec.DecodeIndexEntryToIndexChecksum(true, nil)
+	require.NoError(t, err)
+	assert.Equal(t, testIndexChecksum, res)
 }

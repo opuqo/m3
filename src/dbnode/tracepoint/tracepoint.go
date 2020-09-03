@@ -46,17 +46,17 @@ const (
 	// FetchReadSegment is the operation name for the tchannelthrift FetchReadSegment path.
 	FetchReadSegment = "tchannelthrift/node.service.FetchReadSegment"
 
-	// IndexHash is the operation name for the tchannelthrift IndexHash path.
-	IndexHash = "tchannelthrift/node.service.IndexHash"
+	// IndexChecksum is the operation name for the tchannelthrift IndexChecksum path.
+	IndexChecksum = "tchannelthrift/node.service.IndexChecksum"
 
-	// IndexHashSingleResult is the operation name for the tchannelthrift IndexHashSingleResult path.
-	IndexHashSingleResult = "tchannelthrift/node.service.IndexHashSingleResult"
+	// IndexChecksumSingleResult is the operation name for the tchannelthrift IndexChecksumSingleResult path.
+	IndexChecksumSingleResult = "tchannelthrift/node.service.IndexChecksumSingleResult"
 
 	// DBQueryIDs is the operation name for the db QueryIDs path.
 	DBQueryIDs = "storage.db.QueryIDs"
 
-	// DBQueryIDsIndexHash is the operation name for the db QueryIDs IndexHash path.
-	DBQueryIDsIndexHash = "storage.db.QueryIDsIndexHash"
+	// DBQueryIDsIndexChecksum is the operation name for the db QueryIDs IndexChecksum path.
+	DBQueryIDsIndexChecksum = "storage.db.QueryIDsIndexHChecksum"
 
 	// DBAggregateQuery is the operation name for the db AggregateQuery path.
 	DBAggregateQuery = "storage.db.AggregateQuery"
@@ -73,14 +73,14 @@ const (
 	// DBWriteBatch is the operation name for the db WriteBatch path.
 	DBWriteBatch = "storage.db.WriteBatch"
 
-	// DBIndexHash is the operation name for the tchannelthrift IndexHash path.
-	DBIndexHash = "storage.db.IndexHash"
+	// DBIndexChecksum is the operation name for the tchannelthrift IndexChecksum path.
+	DBIndexChecksum = "storage.db.IndexChecksum"
 
 	// NSQueryIDs is the operation name for the dbNamespace QueryIDs path.
 	NSQueryIDs = "storage.dbNamespace.QueryIDs"
 
-	// NSIndexHashQuery is the operation name for the dbNamespace QueryIDs path when fetching index hashes.
-	NSIndexHashQuery = "storage.nsIndex.IndexHash"
+	// NSIndexChecksumQuery is the operation name for the dbNamespace QueryIDs path when fetching index checksums.
+	NSIndexChecksumQuery = "storage.nsIndex.IndexChecksum"
 
 	// NSPrepareBootstrap is the operation name for the dbNamespace PrepareBootstrap path.
 	NSPrepareBootstrap = "storage.dbNamespace.PrepareBootstrap"
@@ -88,8 +88,8 @@ const (
 	// NSBootstrap is the operation name for the dbNamespace Bootstrap path.
 	NSBootstrap = "storage.dbNamespace.Bootstrap"
 
-	// NSIndexHash is the operation name for the tchannelthrift IndexHash path.
-	NSIndexHash = "storage.dbNamespace.IndexHash"
+	// NSIndexChecksum is the operation name for the tchannelthrift IndexChecksum path.
+	NSIndexChecksum = "storage.dbNamespace.IndexChecksum"
 
 	// ShardPrepareBootstrap is the operation name for the dbShard PrepareBootstrap path.
 	ShardPrepareBootstrap = "storage.dbShard.PrepareBootstrap"
@@ -118,8 +118,8 @@ const (
 	// BlockAggregate is the operation name for the index block aggregate path.
 	BlockAggregate = "storage/index.block.Aggregate"
 
-	// IndexHashQuery is the operation name for the index hash query path.
-	IndexHashQuery = "storage/index.block.IndexHash"
+	// IndexChecksumQuery is the operation name for the IndexChecksum query path.
+	IndexChecksumQuery = "storage/index.block.IndexChecksum"
 
 	// BootstrapProcessRun is the operation name for the bootstrap process Run path.
 	BootstrapProcessRun = "bootstrap.bootstrapProcess.Run"

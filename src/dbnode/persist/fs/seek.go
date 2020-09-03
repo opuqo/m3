@@ -461,7 +461,7 @@ func (s *seeker) SeekIndexEntry(
 	}
 }
 
-// SeekIndexEntryToIndexHash performs the following steps:
+// SeekIndexEntryToIndexChecksum performs the following steps:
 //
 //     1. Go to the indexLookup and it will give us an offset that is a good starting
 //        point for scanning the index file.
@@ -471,15 +471,16 @@ func (s *seeker) SeekIndexEntry(
 //     4. Called DecodeIndexEntry in a tight loop (which will advance our position in the
 //        offsetFileReader internally) until we've either found the entry we're looking for or gone so
 //        far we know it does not exist.
-func (s *seeker) SeekIndexEntryToIndexHash(
+func (s *seeker) SeekIndexEntryToIndexChecksum(
 	id ident.ID,
+	withID bool,
 	resources ReusableSeekerResources,
-) (ident.IndexHash, error) {
+) (ident.IndexChecksumBlock, error) {
 	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
 	// Should never happen, either something is really wrong with the code or
 	// the file on disk was corrupted.
 	if err != nil {
-		return ident.IndexHash{}, err
+		return ident.IndexChecksumBlock{}, err
 	}
 
 	resources.offsetFileReader.reset(s.indexFd, offset)
@@ -494,30 +495,40 @@ func (s *seeker) SeekIndexEntryToIndexHash(
 		// this is a tight loop (scanning linearly through the index file) we want to use a
 		// very cheap pool until we find what we're looking for, and then we can perform a single
 		// copy into checked.Bytes from the more expensive pool.
-		entry, err := resources.xmsgpackDecoder.DecodeIndexEntryToIndexHash(resources.decodeIndexEntryBytesPool)
+		entry, err := resources.xmsgpackDecoder.DecodeIndexEntryToIndexChecksum(
+			withID,
+			resources.decodeIndexEntryBytesPool)
 		if err == io.EOF {
 			// We reached the end of the file without finding it.
-			return ident.IndexHash{}, errSeekIDNotFound
+			return ident.IndexChecksumBlock{}, errSeekIDNotFound
 		}
 		if err != nil {
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
-			return ident.IndexHash{}, instrument.InvariantErrorf(err.Error())
+			return ident.IndexChecksumBlock{}, instrument.InvariantErrorf(err.Error())
 		}
 		if entry.ID == nil {
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
-			return ident.IndexHash{},
+			return ident.IndexChecksumBlock{},
 				instrument.InvariantErrorf("decoded index entry had no ID for: %s", id.String())
 		}
+
+		fmt.Printf("%+v\n", entry)
 
 		comparison := bytes.Compare(entry.ID, idBytes)
 		if comparison == 0 {
 			// Safe to return resources to the pool because the hash already exists.
 			resources.decodeIndexEntryBytesPool.Put(entry.ID)
-			return ident.IndexHash{
-				DataChecksum: uint32(entry.DataChecksum),
-			}, nil
+			bl := ident.IndexChecksumBlock{
+				Checksums: []uint32{entry.IndexChecksum},
+			}
+
+			if withID {
+				bl.Marker = entry.ID
+			}
+
+			return bl, nil
 		}
 
 		// No longer being used so we can return to the pool.
@@ -526,7 +537,7 @@ func (s *seeker) SeekIndexEntryToIndexHash(
 		// We've scanned far enough through the index file to be sure that the ID
 		// we're looking for doesn't exist (because the index is sorted by ID)
 		if comparison == 1 {
-			return ident.IndexHash{}, errSeekIDNotFound
+			return ident.IndexChecksumBlock{}, errSeekIDNotFound
 		}
 	}
 }
