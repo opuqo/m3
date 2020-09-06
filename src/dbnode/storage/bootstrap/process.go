@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/clock"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/retention"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -45,6 +46,7 @@ type bootstrapProcessProvider struct {
 	sync.RWMutex
 	processOpts          ProcessOptions
 	resultOpts           result.Options
+	fsOpts               fs.Options
 	log                  *zap.Logger
 	bootstrapperProvider BootstrapperProvider
 }
@@ -61,6 +63,7 @@ func NewProcessProvider(
 	bootstrapperProvider BootstrapperProvider,
 	processOpts ProcessOptions,
 	resultOpts result.Options,
+	fsOpts fs.Options,
 ) (ProcessProvider, error) {
 	if err := processOpts.Validate(); err != nil {
 		return nil, err
@@ -69,6 +72,7 @@ func NewProcessProvider(
 	return &bootstrapProcessProvider{
 		processOpts:          processOpts,
 		resultOpts:           resultOpts,
+		fsOpts:               fsOpts,
 		log:                  resultOpts.InstrumentOptions().Logger(),
 		bootstrapperProvider: bootstrapperProvider,
 	}, nil
@@ -102,6 +106,7 @@ func (b *bootstrapProcessProvider) Provide() (Process, error) {
 	return bootstrapProcess{
 		processOpts:          b.processOpts,
 		resultOpts:           b.resultOpts,
+		fsOpts:               b.fsOpts,
 		nowFn:                b.resultOpts.ClockOptions().NowFn(),
 		log:                  b.log,
 		bootstrapper:         bootstrapper,
@@ -147,6 +152,7 @@ func (b *bootstrapProcessProvider) newInitialTopologyState() (*topology.StateSna
 type bootstrapProcess struct {
 	processOpts          ProcessOptions
 	resultOpts           result.Options
+	fsOpts               fs.Options
 	nowFn                clock.NowFn
 	log                  *zap.Logger
 	bootstrapper         Bootstrapper
@@ -164,6 +170,7 @@ func (b bootstrapProcess) Run(
 	namespacesRunSecond := Namespaces{
 		Namespaces: NewNamespacesMap(NamespacesMapOptions{}),
 	}
+	finders := make([]InfoFilesFinder, 0, len(namespaces))
 	for _, namespace := range namespaces {
 		ropts := namespace.Metadata.Options().RetentionOptions()
 		idxopts := namespace.Metadata.Options().IndexOptions()
@@ -211,6 +218,16 @@ func (b bootstrapProcess) Run(
 				RunOptions:            indexRanges.secondRangeWithPersistFalse.RunOptions,
 			},
 		})
+		finders = append(finders, InfoFilesFinder{
+			Namespace: namespace.Metadata,
+			Shards:    namespace.Shards,
+		})
+	}
+	runState, err := NewRunState(NewRunStateOptions().
+		SetFilesystemOptions(b.fsOpts).
+		SetInfoFilesFinders(finders))
+	if err != nil {
+		return NamespaceResults{}, err
 	}
 
 	bootstrapResult := NewNamespaceResults(namespacesRunFirst)
@@ -218,7 +235,7 @@ func (b bootstrapProcess) Run(
 		namespacesRunFirst,
 		namespacesRunSecond,
 	} {
-		res, err := b.runPass(ctx, namespaces)
+		res, err := b.runPass(ctx, namespaces, runState)
 		if err != nil {
 			return NamespaceResults{}, err
 		}
@@ -232,6 +249,7 @@ func (b bootstrapProcess) Run(
 func (b bootstrapProcess) runPass(
 	ctx context.Context,
 	namespaces Namespaces,
+	runState RunState,
 ) (NamespaceResults, error) {
 	ctx, span, sampled := ctx.StartSampledTraceSpan(tracepoint.BootstrapProcessRun)
 	defer span.Finish()
@@ -258,7 +276,7 @@ func (b bootstrapProcess) runPass(
 	}
 
 	begin := b.nowFn()
-	res, err := b.bootstrapper.Bootstrap(ctx, namespaces)
+	res, err := b.bootstrapper.Bootstrap(ctx, namespaces, runState)
 	took := b.nowFn().Sub(begin)
 	if err != nil {
 		b.log.Error("bootstrap process error",

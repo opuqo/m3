@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
+	"github.com/m3db/m3/src/dbnode/persist/fs"
 	"github.com/m3db/m3/src/dbnode/storage/bootstrap/result"
 	"github.com/m3db/m3/src/dbnode/storage/series"
 	"github.com/m3db/m3/src/dbnode/topology"
@@ -390,7 +391,7 @@ type Bootstrapper interface {
 	// A bootstrapper should only return an error should it want to entirely
 	// cancel the bootstrapping of the node, i.e. non-recoverable situation
 	// like not being able to read from the filesystem.
-	Bootstrap(ctx context.Context, namespaces Namespaces) (NamespaceResults, error)
+	Bootstrap(ctx context.Context, namespaces Namespaces, runState RunState) (NamespaceResults, error)
 }
 
 // Source represents a bootstrap source. Note that a source can and will be reused so
@@ -401,6 +402,7 @@ type Source interface {
 	AvailableData(
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
+		runState RunState,
 		runOpts RunOptions,
 	) (result.ShardTimeRanges, error)
 
@@ -408,6 +410,7 @@ type Source interface {
 	AvailableIndex(
 		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
+		runState RunState,
 		opts RunOptions,
 	) (result.ShardTimeRanges, error)
 
@@ -416,5 +419,44 @@ type Source interface {
 	// A bootstrapper source should only return an error should it want to
 	// entirely cancel the bootstrapping of the node, i.e. non-recoverable
 	// situation like not being able to read from the filesystem.
-	Read(ctx context.Context, namespaces Namespaces) (NamespaceResults, error)
+	Read(ctx context.Context, namespaces Namespaces, runState RunState) (NamespaceResults, error)
+}
+
+// InfoFileResultsPerShard maps shards to info files.
+type InfoFileResultsPerShard map[uint32][]fs.ReadInfoFileResult
+
+// InfoFilesByNamespace maps a namespace to info files grouped by shard.
+type InfoFilesByNamespace map[namespace.Metadata]InfoFileResultsPerShard
+
+// RunState provides a snapshot of info files for use throughout all stages of the bootstrap.
+type RunState struct {
+	fsOpts               fs.Options
+	infoFilesFinders     []InfoFilesFinder
+	infoFilesByNamespace InfoFilesByNamespace
+}
+
+// RunStateOptions represents the options for RunState.
+type RunStateOptions interface {
+	// Validate will validate the options and return an error if not valid.
+	Validate() error
+
+	// SetFilesystemOptions sets the filesystem options.
+	SetFilesystemOptions(value fs.Options) RunStateOptions
+
+	// FilesystemOptions returns the filesystem options.
+	FilesystemOptions() fs.Options
+
+	// SetInfoFilesFinders sets the finders used to load info files for all namespaces provided.
+	SetInfoFilesFinders(value []InfoFilesFinder) RunStateOptions
+
+	// InfoFilesFinders returns the finders used to load info files for all namespaces provided.
+	InfoFilesFinders() []InfoFilesFinder
+}
+
+// InfoFilesFinder is used to lookup info files for the given combination of namespace and shards.
+type InfoFilesFinder struct {
+	// Namespace is the namespace to retrieve info files for.
+	Namespace namespace.Metadata
+	// Shards are the shards to retrieve info files for in the specified namespace.
+	Shards []uint32
 }

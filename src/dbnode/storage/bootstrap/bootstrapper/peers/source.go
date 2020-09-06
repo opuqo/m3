@@ -95,6 +95,7 @@ type shardPeerAvailability struct {
 func (s *peersSource) AvailableData(
 	nsMetadata namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
+	_ bootstrap.RunState,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	if err := s.validateRunOpts(runOpts); err != nil {
@@ -106,6 +107,7 @@ func (s *peersSource) AvailableData(
 func (s *peersSource) AvailableIndex(
 	nsMetadata namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
+	_ bootstrap.RunState,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
 	if err := s.validateRunOpts(runOpts); err != nil {
@@ -117,6 +119,7 @@ func (s *peersSource) AvailableIndex(
 func (s *peersSource) Read(
 	ctx context.Context,
 	namespaces bootstrap.Namespaces,
+	runState bootstrap.RunState,
 ) (bootstrap.NamespaceResults, error) {
 	ctx, span, _ := ctx.StartSampledTraceSpan(tracepoint.BootstrapperPeersSourceRead)
 	defer span.Finish()
@@ -193,7 +196,8 @@ func (s *peersSource) Read(
 			namespace.IndexRunOptions.ShardTimeRanges,
 			builder,
 			namespace.IndexRunOptions.RunOptions,
-			span)
+			span,
+			runState.InfoFilesForNamespace(md))
 		if err != nil {
 			return bootstrap.NamespaceResults{}, err
 		}
@@ -661,6 +665,7 @@ func (s *peersSource) readIndex(
 	builder *result.IndexBuilder,
 	opts bootstrap.RunOptions,
 	span opentracing.Span,
+	infoFilesByShard bootstrap.InfoFileResultsPerShard,
 ) (result.IndexBootstrapResult, error) {
 	if err := s.validateRunOpts(opts); err != nil {
 		return nil, err
@@ -707,6 +712,7 @@ func (s *peersSource) readIndex(
 		Logger:                    s.log,
 		Span:                      span,
 		NowFn:                     s.nowFn,
+		InfoFilesByShard:          infoFilesByShard,
 	})
 
 	for timeWindowReaders := range readersCh {
@@ -984,7 +990,7 @@ func (s *peersSource) readBlockMetadataAndIndex(
 }
 
 func (s *peersSource) peerAvailability(
-	nsMetadata namespace.Metadata,
+	_ namespace.Metadata,
 	shardTimeRanges result.ShardTimeRanges,
 	runOpts bootstrap.RunOptions,
 ) (result.ShardTimeRanges, error) {
