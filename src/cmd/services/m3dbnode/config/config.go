@@ -264,7 +264,7 @@ type BlockRetrievePolicy struct {
 
 	// CacheOnRetrieve enables/disables callbacks used to cache blocks fetched
 	// from disk.
-	CacheOnRetrieve *bool `yaml:"disableCacheOnRetrieve"`
+	CacheOnRetrieve *bool `yaml:"cacheOnRetrieve"`
 }
 
 // CommitLogPolicy is the commit log policy.
