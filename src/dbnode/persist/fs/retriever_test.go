@@ -674,6 +674,71 @@ func TestBlockRetrieverOnlyCreatesTagItersIfTagsExists(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestBlockRetrieverDoesNotInvokeOnRetrieve verifies that the block retriever
+// does not invoke the OnRetrieve block if CacheOnRetrieve is not enabled.
+func TestBlockRetrieverDoesNotInvokeOnRetrieve(t *testing.T) {
+	// Make sure reader/writer are looking at the same test directory.
+	dir, err := ioutil.TempDir("", "testdb")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+	filePathPrefix := filepath.Join(dir, "")
+
+	// Setup constants and config.
+	fsOpts := testDefaultOpts.SetFilePathPrefix(filePathPrefix)
+	rOpts := testNs1Metadata(t).Options().RetentionOptions()
+	nsCtx := namespace.NewContextFrom(testNs1Metadata(t))
+	shard := uint32(0)
+	blockStart := time.Now().Truncate(rOpts.BlockSize())
+
+	// Setup the reader.
+	opts := testBlockRetrieverOptions{
+		retrieverOpts: defaultTestBlockRetrieverOptions.SetCacheOnRetrieve(false),
+		fsOpts:        fsOpts,
+		shards:        []uint32{shard},
+	}
+	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
+	defer cleanup()
+
+	// Write out a test file.
+	var (
+		w, closer = newOpenTestWriter(t, fsOpts, shard, blockStart, 0)
+		tag       = ident.Tag{
+			Name:  ident.StringID("name"),
+			Value: ident.StringID("value"),
+		}
+		tags = ident.NewTags(tag)
+		id   = "foo"
+	)
+	data := checked.NewBytes([]byte("Hello world!"), nil)
+	data.IncRef()
+	defer data.DecRef()
+
+	metadata := persist.NewMetadataFromIDAndTags(ident.StringID(id), tags,
+		persist.MetadataOptions{})
+	err = w.Write(metadata, data, digest.Checksum(data.Bytes()))
+	require.NoError(t, err)
+	closer()
+
+	// Make sure we return the correct error if the ID does not exist
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	retrieveFn := block.OnRetrieveBlockFn(func(
+		id ident.ID,
+		tagsIter ident.TagIterator,
+		startTime time.Time,
+		segment ts.Segment,
+		nsCtx namespace.Context,
+	) {
+		require.Fail(t, "should not be called")
+	})
+
+	_, err = retriever.Stream(ctx, shard,
+		ident.StringID("foo"), blockStart, retrieveFn, nsCtx)
+
+	require.NoError(t, err)
+}
+
 // TestBlockRetrieverHandlesErrors verifies the behavior of the Stream() method
 // on the retriever in the case where the SeekIndexEntry function returns an
 // error.

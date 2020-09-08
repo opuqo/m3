@@ -261,6 +261,10 @@ type BlockRetrievePolicy struct {
 	// FetchConcurrency is the concurrency to fetch blocks from disk. For
 	// spinning disks it is highly recommended to set this value to 1.
 	FetchConcurrency int `yaml:"fetchConcurrency" validate:"min=0"`
+
+	// CacheOnRetrieve enables/disables callbacks used to cache blocks fetched
+	// from disk.
+	CacheOnRetrieve *bool `yaml:"disableCacheOnRetrieve"`
 }
 
 // CommitLogPolicy is the commit log policy.

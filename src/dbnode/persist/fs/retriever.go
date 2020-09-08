@@ -342,7 +342,7 @@ func (r *blockRetriever) fetchBatch(
 		}
 
 		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found.
-		callOnRetrieve := req.onRetrieve != nil && req.foundAndHasNoError()
+		callOnRetrieve := r.opts.CacheOnRetrieve() && req.onRetrieve != nil && req.foundAndHasNoError()
 		if callOnRetrieve {
 			// NB(r): Need to also trigger callback with a copy of the data.
 			// This is used by the database to cache the in memory data for
