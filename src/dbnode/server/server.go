@@ -635,7 +635,7 @@ func Run(runOpts RunOptions) {
 		SetMaxOutstandingWriteRequests(cfg.Limits.MaxOutstandingWriteRequests).
 		SetMaxOutstandingReadRequests(cfg.Limits.MaxOutstandingReadRequests)
 
-	if cfg.TChannel != nil && cfg.Tchannel.BatchSize > 0 {
+	if cfg.TChannel != nil && cfg.TChannel.BatchSize > 0 {
 		ttopts = ttopts.SetBatchSize(cfg.TChannel.BatchSize)
 	}
 
