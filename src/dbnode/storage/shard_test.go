@@ -32,7 +32,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/m3db/m3/src/dbnode/encoding"
 	"github.com/m3db/m3/src/dbnode/namespace"
 	"github.com/m3db/m3/src/dbnode/persist"
@@ -1570,7 +1569,7 @@ func TestShardRegisterRuntimeOptionsListeners(t *testing.T) {
 	assert.Equal(t, 2, closer.called)
 }
 
-func TestShardStreamIndexHash(t *testing.T) {
+func TestShardStreamIndexChecksum(t *testing.T) {
 	dir, err := ioutil.TempDir("", "testdir")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
@@ -1604,24 +1603,18 @@ func TestShardStreamIndexHash(t *testing.T) {
 	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
 	shard.setBlockRetriever(retriever)
 
-	mid := start.Add(ropts.BlockSize())
-	indexChecksums := ident.IndexChecksumBlock{
-		ident.IndexHash{DataChecksum: 1, BlockStart: start},
-		ident.IndexHash{DataChecksum: 2, BlockStart: mid},
+	indexChecksum := ident.IndexChecksum{
+		Checksum: 5,
+		ID:       []byte("foo"),
 	}
 
 	retriever.EXPECT().
-		StreamIndexHash(ctx, shard.shard, ident.NewIDMatcher("foo"),
-			start, gomock.Any()).Return(indexHashes[0], true, nil)
-
-	retriever.EXPECT().
-		StreamIndexHash(ctx, shard.shard, ident.NewIDMatcher("foo"),
-			mid, gomock.Any()).Return(indexHashes[1], true, nil)
+		StreamIndexChecksum(ctx, shard.shard, ident.NewIDMatcher("foo"), true,
+			start, gomock.Any()).Return(indexChecksum, true, nil)
 
 	// Check reads as expected
-	r, err := shard.IndexHashes(ctx, ident.StringID("foo"), start, end, namespace.Context{})
+	r, err := shard.IndexChecksum(ctx, ident.StringID("foo"), true, start, namespace.Context{})
 	require.NoError(t, err)
-	require.Equal(t, 2, len(r.IndexHashes))
 
 	// Check that nothing has been cached. Should be cached after a second.
 	time.Sleep(time.Second)
@@ -1633,9 +1626,7 @@ func TestShardStreamIndexHash(t *testing.T) {
 	require.Equal(t, err, errShardEntryNotFound)
 	require.Nil(t, entry)
 
-	assert.Equal(t, xxhash.Sum64([]byte("foo")), r.IDHash)
-	require.Equal(t, 2, len(r.IndexHashes))
-	assert.Equal(t, indexHashes, r.IndexHashes)
+	assert.Equal(t, indexChecksum, r)
 }
 
 func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {

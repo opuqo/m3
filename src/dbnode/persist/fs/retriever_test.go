@@ -776,7 +776,7 @@ func stripVolumeTag(tags ident.Tags) ident.Tags {
 	return ident.NewTags(tagsSlice...)
 }
 
-func TestBlockRetrieverIndexHashReturns(t *testing.T) {
+func TestBlockRetrieverIndexChecksum(t *testing.T) {
 	// Make sure reader/writer are looking at the same test directory.
 	dir, err := ioutil.TempDir("", "testdb")
 	require.NoError(t, err)
@@ -814,6 +814,11 @@ func TestBlockRetrieverIndexHashReturns(t *testing.T) {
 		data string
 	}{
 		{
+			id:   "aaa",
+			tags: ident.Tags{},
+			data: "bbb",
+		},
+		{
 			id:   "no-tags",
 			tags: ident.Tags{},
 			data: "Hello world!",
@@ -822,6 +827,11 @@ func TestBlockRetrieverIndexHashReturns(t *testing.T) {
 			id:   "tags",
 			tags: tags,
 			data: "foobar",
+		},
+		{
+			id:   "zz",
+			tags: ident.Tags{},
+			data: "zzz",
 		},
 	} {
 		data := checked.NewBytes([]byte(write.data), nil)
@@ -835,28 +845,31 @@ func TestBlockRetrieverIndexHashReturns(t *testing.T) {
 		require.NoError(t, err)
 	}
 	closer()
-
 	// Make sure we return the correct error if the ID does not exist
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	indexHash, found, err := retriever.StreamIndexChecksum(ctx, shard,
-		ident.StringID("no-tags"), blockStart, nsCtx)
+	_, found, err := retriever.StreamIndexChecksum(ctx, shard,
+		ident.StringID("a"), true, blockStart, nsCtx)
+	require.NoError(t, err)
+	require.False(t, found)
+
+	indexChecksum, found, err := retriever.StreamIndexChecksum(ctx, shard,
+		ident.StringID("no-tags"), false, blockStart, nsCtx)
 	require.NoError(t, err)
 	require.True(t, found)
-	fmt.Println(indexHash)
-	assert.Equal(t, blockStart, string(indexHash.Marker))
-	// assert.Equal(t, digest.Checksum([]byte("Hello world!")), indexHash.DataChecksum)
+	assert.Equal(t, 0, len(indexChecksum.ID))
+	assert.Equal(t, uint32(1296303834), indexChecksum.Checksum)
 
-	// indexHash, found, err = retriever.StreamIndexHash(ctx, shard,
-	// 	ident.StringID("tags"), blockStart, nsCtx)
-	// require.NoError(t, err)
-	// require.True(t, found)
-	// assert.Equal(t, blockStart, indexHash.BlockStart)
-	// assert.Equal(t, digest.Checksum([]byte("foobar")), indexHash.DataChecksum)
+	indexChecksum, found, err = retriever.StreamIndexChecksum(ctx, shard,
+		ident.StringID("tags"), true, blockStart, nsCtx)
+	require.NoError(t, err)
+	require.True(t, found)
+	assert.Equal(t, "tags", string(indexChecksum.ID))
+	assert.Equal(t, uint32(3515157236), indexChecksum.Checksum)
 
-	// indexHash, found, err = retriever.StreamIndexHash(ctx, shard,
-	// 	ident.StringID("not-present"), blockStart, nsCtx)
-	// require.NoError(t, err)
-	// require.False(t, found)
+	_, found, err = retriever.StreamIndexChecksum(ctx, shard,
+		ident.StringID("zzzzz"), true, blockStart, nsCtx)
+	require.NoError(t, err)
+	require.False(t, found)
 }

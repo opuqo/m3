@@ -490,10 +490,10 @@ func (mr *MockDataFileSetSeekerMockRecorder) SeekIndexEntry(arg0, arg1 interface
 }
 
 // SeekIndexEntryToIndexChecksum mocks base method
-func (m *MockDataFileSetSeeker) SeekIndexEntryToIndexChecksum(arg0 ident.ID, arg1 bool, arg2 ReusableSeekerResources) (ident.IndexChecksumBlock, error) {
+func (m *MockDataFileSetSeeker) SeekIndexEntryToIndexChecksum(arg0 ident.ID, arg1 bool, arg2 ReusableSeekerResources) (ident.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekIndexEntryToIndexChecksum", arg0, arg1, arg2)
-	ret0, _ := ret[0].(ident.IndexChecksumBlock)
+	ret0, _ := ret[0].(ident.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1226,10 +1226,10 @@ func (mr *MockConcurrentDataFileSetSeekerMockRecorder) SeekIndexEntry(arg0, arg1
 }
 
 // SeekIndexEntryToIndexChecksum mocks base method
-func (m *MockConcurrentDataFileSetSeeker) SeekIndexEntryToIndexChecksum(arg0 ident.ID, arg1 bool, arg2 ReusableSeekerResources) (ident.IndexChecksumBlock, error) {
+func (m *MockConcurrentDataFileSetSeeker) SeekIndexEntryToIndexChecksum(arg0 ident.ID, arg1 bool, arg2 ReusableSeekerResources) (ident.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SeekIndexEntryToIndexChecksum", arg0, arg1, arg2)
-	ret0, _ := ret[0].(ident.IndexChecksumBlock)
+	ret0, _ := ret[0].(ident.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -101,26 +101,26 @@ func TestReaderUsingRetrieverIndexChecksums(t *testing.T) {
 	retriever := NewMockQueryableBlockRetriever(ctrl)
 	retriever.EXPECT().IsBlockRetrievable(start).Return(true, nil)
 
-	indexChecksums := ident.IndexChecksumBlock{
-		Marker:    []byte("foo"),
-		Checksums: []uint32{1, 2, 3},
+	indexChecksum := ident.IndexChecksum{
+		ID:       []byte("foo"),
+		Checksum: 5,
 	}
 
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
 	retriever.EXPECT().
-		StreamIndexHash(ctx, ident.NewIDMatcher("foo"),
-			start, gomock.Any()).
-		Return(indexChecksums, true, nil)
+		StreamIndexChecksum(ctx, ident.NewIDMatcher("foo"),
+			true, start, gomock.Any()).
+		Return(indexChecksum, true, nil)
 
 	reader := NewReaderUsingRetriever(
 		ident.StringID("foo"), retriever, nil, nil, opts)
 
 	// Check reads as expected
-	r, err := reader.IndexChecksum(ctx, start, namespace.Context{})
+	r, err := reader.IndexChecksum(ctx, start, true, namespace.Context{})
 	require.NoError(t, err)
-	assert.Equal(t, indexChecksums, r)
+	assert.Equal(t, indexChecksum, r)
 }
 
 type readTestCase struct {

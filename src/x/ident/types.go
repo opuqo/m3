@@ -318,3 +318,11 @@ type IndexChecksumBlock struct {
 	// Marker is a batch marker, signifying the ID of the last element in the batch.
 	Marker []byte
 }
+
+// IndexChecksum represents an index checksums within a series block.
+type IndexChecksum struct {
+	// Checksum is the index checksum.
+	Checksum uint32
+	// ID is an optional ID for this series, set only when explicitly requested.
+	ID []byte
+}

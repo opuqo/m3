@@ -495,7 +495,7 @@ func (r *blockRetriever) StreamIndexChecksum(
 	useID bool,
 	startTime time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexChecksumBlock, bool, error) {
+) (ident.IndexChecksum, bool, error) {
 	req := r.reqPool.Get()
 	req.shard = shard
 	// NB(r): Clone the ID as we're not positive it will stay valid throughout
@@ -517,24 +517,24 @@ func (r *blockRetriever) StreamIndexChecksum(
 	// This should never happen unless caller tries to use Stream() before Open()
 	if r.seekerMgr == nil {
 		r.RUnlock()
-		return ident.IndexChecksumBlock{}, false, errNoSeekerMgr
+		return ident.IndexChecksum{}, false, errNoSeekerMgr
 	}
 	r.RUnlock()
 
 	idExists, err := r.seekerMgr.Test(id, shard, startTime)
 	if err != nil {
-		return ident.IndexChecksumBlock{}, false, err
+		return ident.IndexChecksum{}, false, err
 	}
 
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately.
 	if !idExists {
-		return ident.IndexChecksumBlock{}, false, nil
+		return ident.IndexChecksum{}, false, nil
 	}
 
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
-		return ident.IndexChecksumBlock{}, false, err
+		return ident.IndexChecksum{}, false, err
 	}
 
 	reqs.Lock()
@@ -555,7 +555,7 @@ func (r *blockRetriever) StreamIndexChecksum(
 	// read the data.
 	checksum, err := req.waitForIndexChecksum()
 	if err != nil {
-		return ident.IndexChecksumBlock{}, false, err
+		return ident.IndexChecksum{}, false, err
 	}
 
 	return checksum, true, nil
@@ -672,7 +672,7 @@ type retrieveRequest struct {
 
 	reqType       reqType
 	indexEntry    IndexEntry
-	indexChecksum ident.IndexChecksumBlock
+	indexChecksum ident.IndexChecksum
 	useID         bool
 	reader        xio.SegmentReader
 
@@ -688,7 +688,7 @@ type retrieveRequest struct {
 }
 
 func (req *retrieveRequest) onIndexChecksumCompleted(
-	indexChecksum ident.IndexChecksumBlock) {
+	indexChecksum ident.IndexChecksum) {
 	if req.err == nil {
 		req.indexChecksum = indexChecksum
 		// If there was an error, we've already called done.
@@ -696,10 +696,10 @@ func (req *retrieveRequest) onIndexChecksumCompleted(
 	}
 }
 
-func (req *retrieveRequest) waitForIndexChecksum() (ident.IndexChecksumBlock, error) {
+func (req *retrieveRequest) waitForIndexChecksum() (ident.IndexChecksum, error) {
 	req.resultWg.Wait()
 	if req.err != nil {
-		return ident.IndexChecksumBlock{}, req.err
+		return ident.IndexChecksum{}, req.err
 	}
 	return req.indexChecksum, nil
 }
@@ -805,7 +805,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.onRetrieve = nil
 	req.reqType = streamReq
 	req.indexEntry = IndexEntry{}
-	req.indexChecksum = ident.IndexChecksumBlock{}
+	req.indexChecksum = ident.IndexChecksum{}
 	req.reader = nil
 	req.err = nil
 	req.notFound = false

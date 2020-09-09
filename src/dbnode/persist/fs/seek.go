@@ -475,12 +475,12 @@ func (s *seeker) SeekIndexEntryToIndexChecksum(
 	id ident.ID,
 	withID bool,
 	resources ReusableSeekerResources,
-) (ident.IndexChecksumBlock, error) {
+) (ident.IndexChecksum, error) {
 	offset, err := s.indexLookup.getNearestIndexFileOffset(id, resources)
 	// Should never happen, either something is really wrong with the code or
 	// the file on disk was corrupted.
 	if err != nil {
-		return ident.IndexChecksumBlock{}, err
+		return ident.IndexChecksum{}, err
 	}
 
 	resources.offsetFileReader.reset(s.indexFd, offset)
@@ -489,56 +489,34 @@ func (s *seeker) SeekIndexEntryToIndexChecksum(
 
 	idBytes := id.Bytes()
 	for {
-		// Use the bytesPool on resources here because its designed for this express purpose
-		// and is much faster / cheaper than the checked bytes pool which has a lot of
-		// synchronization and is prone to allocation (due to being shared). Basically because
-		// this is a tight loop (scanning linearly through the index file) we want to use a
-		// very cheap pool until we find what we're looking for, and then we can perform a single
-		// copy into checked.Bytes from the more expensive pool.
-		entry, err := resources.xmsgpackDecoder.DecodeIndexEntryToIndexChecksum(
-			withID,
-			resources.decodeIndexEntryBytesPool)
-		if err == io.EOF {
-			// We reached the end of the file without finding it.
-			return ident.IndexChecksumBlock{}, errSeekIDNotFound
-		}
+		checksum, status, err := resources.xmsgpackDecoder.
+			DecodeIndexEntryToIndexChecksum(idBytes, resources.decodeIndexEntryBytesPool)
 		if err != nil {
+			if err == io.EOF {
+				// Reached the end of the file without finding the ID.
+				return ident.IndexChecksum{}, errSeekIDNotFound
+			}
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted.
-			return ident.IndexChecksumBlock{}, instrument.InvariantErrorf(err.Error())
-		}
-		if entry.ID == nil {
-			// Should never happen, either something is really wrong with the code or
-			// the file on disk was corrupted.
-			return ident.IndexChecksumBlock{},
-				instrument.InvariantErrorf("decoded index entry had no ID for: %s", id.String())
+			return ident.IndexChecksum{}, instrument.InvariantErrorf(err.Error())
 		}
 
-		fmt.Printf("%+v\n", entry)
-
-		comparison := bytes.Compare(entry.ID, idBytes)
-		if comparison == 0 {
-			// Safe to return resources to the pool because the hash already exists.
-			resources.decodeIndexEntryBytesPool.Put(entry.ID)
-			bl := ident.IndexChecksumBlock{
-				Checksums: []uint32{entry.IndexChecksum},
-			}
-
-			if withID {
-				bl.Marker = entry.ID
-			}
-
-			return bl, nil
+		if status == xmsgpack.NotFound {
+			return ident.IndexChecksum{}, errSeekIDNotFound
+		} else if status == xmsgpack.Mismatch {
+			continue
 		}
 
-		// No longer being used so we can return to the pool.
-		resources.decodeIndexEntryBytesPool.Put(entry.ID)
-
-		// We've scanned far enough through the index file to be sure that the ID
-		// we're looking for doesn't exist (because the index is sorted by ID)
-		if comparison == 1 {
-			return ident.IndexChecksumBlock{}, errSeekIDNotFound
+		// Safe to return resources to the pool because the hash already exists.
+		bl := ident.IndexChecksum{
+			Checksum: checksum,
 		}
+
+		if withID {
+			bl.ID = idBytes
+		}
+
+		return bl, nil
 	}
 }
 

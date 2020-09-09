@@ -290,14 +290,21 @@ func TestDecodeIndexEntryToIndexChecksum(t *testing.T) {
 
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
 	data := enc.Bytes()
-	cloned := append(make([]byte, 0, len(data)), data...)
 	dec.Reset(NewByteDecoderStream(data))
-	res, err := dec.DecodeIndexEntryToIndexChecksum(false, nil)
+	res, status, err := dec.DecodeIndexEntryToIndexChecksum(testIndexEntry.ID, nil)
 	require.NoError(t, err)
-	assert.Equal(t, testIndexChecksumNoID, res)
+	assert.Equal(t, status, Match)
+	assert.Equal(t, testIndexEntryChecksum, res)
 
-	dec.Reset(NewByteDecoderStream(cloned))
-	res, err = dec.DecodeIndexEntryToIndexChecksum(true, nil)
+	dec.Reset(NewByteDecoderStream(data))
+	idBeforeTestEntry := []byte("aaa")
+	res, status, err = dec.DecodeIndexEntryToIndexChecksum(idBeforeTestEntry, nil)
 	require.NoError(t, err)
-	assert.Equal(t, testIndexChecksum, res)
+	assert.Equal(t, NotFound, status)
+
+	dec.Reset(NewByteDecoderStream(data))
+	idAfterTestEntry := []byte("zzzz")
+	res, status, err = dec.DecodeIndexEntryToIndexChecksum(idAfterTestEntry, nil)
+	require.NoError(t, err)
+	assert.Equal(t, Mismatch, status)
 }

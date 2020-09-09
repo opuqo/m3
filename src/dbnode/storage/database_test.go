@@ -291,7 +291,7 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 	require.Nil(t, err)
 }
 
-func TestDatabaseIndexHashNamespaceNotOwned(t *testing.T) {
+func TestDatabaseIndexChecksumNamespaceNotOwned(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -307,7 +307,7 @@ func TestDatabaseIndexHashNamespaceNotOwned(t *testing.T) {
 	require.True(t, dberrors.IsUnknownNamespaceError(err))
 }
 
-func TestDatabaseIndexHashNamespaceOwned(t *testing.T) {
+func TestDatabaseIndexChecksumNamespaceOwned(t *testing.T) {
 	ctrl := xtest.NewController(t)
 	defer ctrl.Finish()
 
@@ -325,17 +325,19 @@ func TestDatabaseIndexHashNamespaceOwned(t *testing.T) {
 	start := end.Add(-time.Hour)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().IndexChecksum(ctx, id, true, start).
-		Return(ident.IndexChecksumBlock{Marker: []byte("foo")}, nil)
+		Return(ident.IndexChecksum{ID: []byte("foo"), Checksum: 5}, nil)
 	mockNamespace.EXPECT().IndexChecksum(ctx, id, false, start).
-		Return(ident.IndexChecksumBlock{Marker: []byte("bar")}, nil)
+		Return(ident.IndexChecksum{Checksum: 7}, nil)
 	d.namespaces.Set(ns, mockNamespace)
 
 	res, err := d.IndexChecksum(ctx, ns, id, true, start)
-	require.Equal(t, "foo", string(res.Marker))
+	require.Equal(t, "foo", string(res.ID))
+	require.Equal(t, 5, int(res.Checksum))
 	require.Nil(t, err)
 
 	res, err = d.IndexChecksum(ctx, ns, id, false, start)
-	require.Equal(t, "bar", string(res.Marker))
+	require.Equal(t, 7, int(res.Checksum))
+	require.Equal(t, 0, len(res.ID))
 	require.Nil(t, err)
 }
 

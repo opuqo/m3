@@ -39,15 +39,6 @@ type QueryOptions struct {
 	BatchSize          int
 }
 
-// ToIndexChecksumQueryOptions converts these options into index hash query options.
-func (o QueryOptions) ToIndexChecksumQueryOptions(batchSize int) QueryOptions {
-	o.SeriesLimit = 0
-	o.DocsLimit = 0
-	o.IndexChecksumQuery = true
-	o.BatchSize = batchSize
-	return o
-}
-
 // SeriesLimitExceeded returns whether a given size exceeds the
 // series limit the query options imposes, if it is enabled.
 func (o QueryOptions) SeriesLimitExceeded(size int) bool {

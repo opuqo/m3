@@ -382,7 +382,7 @@ func (s *dbShard) StreamIndexChecksum(
 	useID bool,
 	blockStart time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexChecksumBlock, bool, error) {
+) (ident.IndexChecksum, bool, error) {
 	return s.DatabaseBlockRetriever.StreamIndexChecksum(ctx, s.shard, id,
 		useID, blockStart, nsCtx)
 }
@@ -1130,7 +1130,7 @@ func (s *dbShard) IndexChecksum(
 	useID bool,
 	start time.Time,
 	nsCtx namespace.Context,
-) (ident.IndexChecksumBlock, error) {
+) (ident.IndexChecksum, error) {
 	s.RLock()
 	// NB: safe to lookup the entry in the cache, but not to add it, since
 	// this path represents operations that are likely to affect the entire
@@ -1148,10 +1148,10 @@ func (s *dbShard) IndexChecksum(
 		switch s.opts.SeriesCachePolicy() {
 		case series.CacheAll:
 			// No-op, would be in memory if cached
-			return ident.IndexChecksumBlock{}, nil
+			return ident.IndexChecksum{}, nil
 		}
 	} else if err != nil {
-		return ident.IndexChecksumBlock{}, err
+		return ident.IndexChecksum{}, err
 	}
 
 	if entry != nil {

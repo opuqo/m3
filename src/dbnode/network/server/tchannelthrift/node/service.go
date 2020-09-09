@@ -21,6 +21,7 @@
 package node
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"runtime"
@@ -869,7 +870,7 @@ func (s *service) AggregateRaw(tctx thrift.Context, req *rpc.AggregateQueryRawRe
 	return response, nil
 }
 
-func (s *service) IndexHash(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.IndexHashResult_, error) {
+func (s *service) IndexChecksum(tctx thrift.Context, req *rpc.IndexChecksumRequest) (*rpc.IndexChecksumResult_, error) {
 	db, err := s.startReadRPCWithDB()
 	if err != nil {
 		return nil, err
@@ -881,12 +882,11 @@ func (s *service) IndexHash(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*
 		sp.LogFields(
 			opentracinglog.String("query", string(req.Query)),
 			opentracinglog.String("namespace", string(req.NameSpace)),
-			xopentracing.Time("start", time.Unix(0, req.RangeStart)),
-			xopentracing.Time("end", time.Unix(0, req.RangeEnd)),
+			xopentracing.Time("start", time.Unix(0, req.BlockStart)),
 		)
 	}
 
-	result, err := s.indexHash(ctx, db, req)
+	result, err := s.indexChecksum(ctx, db, req)
 	if sampled && err != nil {
 		sp.LogFields(opentracinglog.Error(err))
 	}
@@ -895,16 +895,18 @@ func (s *service) IndexHash(tctx thrift.Context, req *rpc.FetchTaggedRequest) (*
 	return result, err
 }
 
-func (s *service) indexHash(ctx context.Context, db storage.Database, req *rpc.FetchTaggedRequest) (*rpc.IndexHashResult_, error) {
+func (s *service) indexChecksum(
+	ctx context.Context,
+	db storage.Database,
+	req *rpc.IndexChecksumRequest,
+) (*rpc.IndexChecksumResult_, error) {
 	callStart := s.nowFn()
-
-	ns, query, opts, _, err := convert.FromRPCFetchTaggedRequest(req, s.pools)
+	ns, query, opts, err := convert.FromRPCIndexChecksumRequest(req, s.opts.BatchSize(), s.pools)
 	if err != nil {
 		s.metrics.indexChecksum.ReportError(s.nowFn().Sub(callStart))
 		return nil, tterrors.NewBadRequestError(err)
 	}
 
-	opts = opts.ToIndexChecksumQueryOptions(s.opts.BatchSize())
 	queryResult, err := db.QueryIDs(ctx, ns, query, opts)
 	if err != nil {
 		s.metrics.indexChecksum.ReportError(s.nowFn().Sub(callStart))
@@ -912,12 +914,12 @@ func (s *service) indexHash(ctx context.Context, db storage.Database, req *rpc.F
 	}
 
 	results := queryResult.Results
-	response := &rpc.IndexHashResult_{
-		Blocks: make([]*rpc.IndexHashListForBlock, 0, results.Size()),
+	response := &rpc.IndexChecksumResult_{
+		Checksums: make([]int64, 0, s.opts.BatchSize()),
 	}
 
-	nsID := results.Namespace()
-	if err := s.indexHashSingle(ctx, db, response, results, nsID, opts); err != nil {
+	// TODO: this should open a stream.
+	if err := s.indexHashSingle(ctx, db, response, results, opts); err != nil {
 		s.metrics.indexChecksum.ReportError(s.nowFn().Sub(callStart))
 		return nil, err
 	}
@@ -928,11 +930,11 @@ func (s *service) indexHash(ctx context.Context, db storage.Database, req *rpc.F
 
 func (s *service) indexHashSingle(ctx context.Context,
 	db storage.Database,
-	response *rpc.IndexHashResult_,
+	response *rpc.IndexChecksumResult_,
 	results index.QueryResults,
-	nsID ident.ID,
 	opts index.QueryOptions,
 ) error {
+	nsID := results.Namespace()
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.IndexChecksumSingleResult)
 	if sampled {
 		sp.LogFields(
@@ -943,36 +945,32 @@ func (s *service) indexHashSingle(ctx context.Context,
 
 	i := 0
 	count := results.Map().Len()
+	// TODO: have an ordered representation generated into the result instead.
+	orderedIDs := make([]ident.ID, 0, count)
 	for _, entry := range results.Map().Iter() {
+		orderedIDs = append(orderedIDs, entry.Key())
+	}
+	// Sort counters for comparison purposes.
+	sort.Slice(orderedIDs, func(i, j int) bool {
+		return bytes.Compare(orderedIDs[i].Bytes(), orderedIDs[j].Bytes()) == -1
+	})
+
+	for _, tsID := range orderedIDs {
 		i++
 
 		// if last element of the batch or last element in the result set,
 		// include ID as a batch marker.
-		useID := i%opts.BatchSize == 0 || i == count-1
-		tsID := entry.Key()
+		useID := i%opts.BatchSize == 0 || i == count
 		checksum, err := db.IndexChecksum(ctx, nsID, tsID, useID,
 			opts.StartInclusive)
-
 		if err != nil {
-			response.Blocks = append(response.Blocks, &rpc.IndexHashListForBlock{
-				Err: convert.ToRPCError(err),
-			})
 			continue
 		}
 
-		// TODO: consider pooling these.
-		hashResults := make([]*rpc.IndexHashResultElement, 0, len(idxHash.IndexHashes))
-		for _, h := range checksum.Checksums {
-			hashResults = append(hashResults, &rpc.IndexHashResultElement{
-				BlockStart:   h.BlockStart.UnixNano(),
-				DataChecksum: int64(h.DataChecksum),
-			})
+		response.Checksums = append(response.Checksums, int64(checksum.Checksum))
+		if useID {
+			response.Marker = checksum.ID
 		}
-
-		response.Blocks = append(response.Blocks, &rpc.IndexHashListForBlock{
-			IndexHash: int64(idxHash.IDHash),
-			Results:   hashResults,
-		})
 	}
 	return nil
 }

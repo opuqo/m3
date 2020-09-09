@@ -293,7 +293,7 @@ type DatabaseBlockRetriever interface {
 		useID bool,
 		startTime time.Time,
 		nsCtx namespace.Context,
-	) (ident.IndexChecksumBlock, bool, error)
+	) (ident.IndexChecksum, bool, error)
 
 	AssignShardSet(shardSet sharding.ShardSet)
 }
@@ -318,7 +318,7 @@ type DatabaseShardBlockRetriever interface {
 		useID bool,
 		blockStart time.Time,
 		nsCtx namespace.Context,
-	) (ident.IndexChecksumBlock, bool, error)
+	) (ident.IndexChecksum, bool, error)
 }
 
 // DatabaseBlockRetrieverManager creates and holds block retrievers

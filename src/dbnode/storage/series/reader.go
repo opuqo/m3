@@ -209,7 +209,7 @@ func (r Reader) IndexChecksum(
 	start time.Time,
 	useID bool,
 	nsCtx namespace.Context,
-) (ident.IndexChecksumBlock, error) {
+) (ident.IndexChecksum, error) {
 	return r.indexChecksum(ctx, start, useID, nsCtx)
 }
 
@@ -218,7 +218,7 @@ func (r Reader) indexChecksum(
 	start time.Time,
 	useID bool,
 	nsCtx namespace.Context,
-) (ident.IndexChecksumBlock, error) {
+) (ident.IndexChecksum, error) {
 	var (
 		nowFn        = r.opts.ClockOptions().NowFn()
 		now          = nowFn()
@@ -233,23 +233,22 @@ func (r Reader) indexChecksum(
 	}
 
 	if r.retriever == nil {
-		return ident.IndexChecksumBlock{}, nil
+		return ident.IndexChecksum{}, nil
 	}
 	// Try to stream from disk
 	isRetrievable, err := r.retriever.IsBlockRetrievable(alignedStart)
 	if err != nil {
-		return ident.IndexChecksumBlock{}, err
+		return ident.IndexChecksum{}, err
 	} else if !isRetrievable {
-		return ident.IndexChecksumBlock{}, nil
+		return ident.IndexChecksum{}, nil
 	}
-	fmt.Println(ctx, r.id, alignedStart, nsCtx)
 	streamedBlock, found, err := r.retriever.StreamIndexChecksum(ctx,
 		r.id, useID, alignedStart, nsCtx)
 	if err != nil {
-		return ident.IndexChecksumBlock{}, err
+		return ident.IndexChecksum{}, err
 	}
 	if !found {
-		return ident.IndexChecksumBlock{}, nil
+		return ident.IndexChecksum{}, nil
 	}
 
 	return streamedBlock, nil

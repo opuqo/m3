@@ -896,7 +896,7 @@ func (d *db) IndexChecksum(
 	id ident.ID,
 	useID bool,
 	start time.Time,
-) (ident.IndexChecksumBlock, error) {
+) (ident.IndexChecksum, error) {
 	ctx, sp, sampled := ctx.StartSampledTraceSpan(tracepoint.DBIndexChecksum)
 	if sampled {
 		sp.LogFields(
@@ -911,7 +911,7 @@ func (d *db) IndexChecksum(
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceRead.Inc(1)
-		return ident.IndexChecksumBlock{}, err
+		return ident.IndexChecksum{}, err
 	}
 
 	return n.IndexChecksum(ctx, id, useID, start)

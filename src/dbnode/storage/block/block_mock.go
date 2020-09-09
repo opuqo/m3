@@ -885,10 +885,10 @@ func (mr *MockDatabaseBlockRetrieverMockRecorder) Stream(ctx, shard, id, blockSt
 }
 
 // StreamIndexChecksum mocks base method
-func (m *MockDatabaseBlockRetriever) StreamIndexChecksum(ctx context.Context, shard uint32, id ident.ID, useID bool, startTime time.Time, nsCtx namespace.Context) (ident.IndexChecksumBlock, bool, error) {
+func (m *MockDatabaseBlockRetriever) StreamIndexChecksum(ctx context.Context, shard uint32, id ident.ID, useID bool, startTime time.Time, nsCtx namespace.Context) (ident.IndexChecksum, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamIndexChecksum", ctx, shard, id, useID, startTime, nsCtx)
-	ret0, _ := ret[0].(ident.IndexChecksumBlock)
+	ret0, _ := ret[0].(ident.IndexChecksum)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -951,10 +951,10 @@ func (mr *MockDatabaseShardBlockRetrieverMockRecorder) Stream(ctx, id, blockStar
 }
 
 // StreamIndexChecksum mocks base method
-func (m *MockDatabaseShardBlockRetriever) StreamIndexChecksum(ctx context.Context, id ident.ID, useID bool, blockStart time.Time, nsCtx namespace.Context) (ident.IndexChecksumBlock, bool, error) {
+func (m *MockDatabaseShardBlockRetriever) StreamIndexChecksum(ctx context.Context, id ident.ID, useID bool, blockStart time.Time, nsCtx namespace.Context) (ident.IndexChecksum, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StreamIndexChecksum", ctx, id, useID, blockStart, nsCtx)
-	ret0, _ := ret[0].(ident.IndexChecksumBlock)
+	ret0, _ := ret[0].(ident.IndexChecksum)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2

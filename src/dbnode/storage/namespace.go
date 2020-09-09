@@ -869,12 +869,12 @@ func (n *dbNamespace) IndexChecksum(
 	id ident.ID,
 	useID bool,
 	start time.Time,
-) (ident.IndexChecksumBlock, error) {
+) (ident.IndexChecksum, error) {
 	callStart := n.nowFn()
 	shard, nsCtx, err := n.readableShardFor(id)
 	if err != nil {
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
-		return ident.IndexChecksumBlock{}, err
+		return ident.IndexChecksum{}, err
 	}
 	res, err := shard.IndexChecksum(ctx, id, useID, start, nsCtx)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))

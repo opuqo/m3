@@ -56,7 +56,7 @@ const (
 	DBQueryIDs = "storage.db.QueryIDs"
 
 	// DBQueryIDsIndexChecksum is the operation name for the db QueryIDs IndexChecksum path.
-	DBQueryIDsIndexChecksum = "storage.db.QueryIDsIndexHChecksum"
+	DBQueryIDsIndexChecksum = "storage.db.QueryIDsIndexChecksum"
 
 	// DBAggregateQuery is the operation name for the db AggregateQuery path.
 	DBAggregateQuery = "storage.db.AggregateQuery"

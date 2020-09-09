@@ -206,7 +206,7 @@ func TestLoadNextWithExhaustedInput(t *testing.T) {
 	assert.Equal(t, 0, len(bl.Marker))
 }
 
-func TestLoadNextValidIndexHashBlockValid(t *testing.T) {
+func TestLoadNextValidIndexChecksumBlockValid(t *testing.T) {
 	inStream := buildDataInputStream([]ident.IndexChecksumBlock{
 		{Checksums: []uint32{1, 2}, Marker: []byte("zztop")},
 	})
@@ -225,7 +225,7 @@ func TestLoadNextValidIndexHashBlockValid(t *testing.T) {
 	assert.Equal(t, "zztop", string(bl.Marker))
 }
 
-func TestLoadNextValidIndexHashBlockSkipThenValid(t *testing.T) {
+func TestLoadNextValidIndexChecksumBlockSkipThenValid(t *testing.T) {
 	bl1 := ident.IndexChecksumBlock{
 		Marker:    []byte("aardvark"),
 		Checksums: []uint32{1, 2},
@@ -257,7 +257,7 @@ func TestLoadNextValidIndexHashBlockSkipThenValid(t *testing.T) {
 	close(outStream)
 }
 
-func TestLoadNextValidIndexHashBlockSkipsExhaustive(t *testing.T) {
+func TestLoadNextValidIndexChecksumBlockSkipsExhaustive(t *testing.T) {
 	bl1 := ident.IndexChecksumBlock{
 		Marker:    []byte("aardvark"),
 		Checksums: []uint32{1, 2},
@@ -291,7 +291,7 @@ func TestLoadNextValidIndexHashBlockSkipsExhaustive(t *testing.T) {
 	assert.Equal(t, 0, len(string(bl.Marker)))
 }
 
-func TestLoadNextValidIndexHashBlockLastElementMatch(t *testing.T) {
+func TestLoadNextValidIndexChecksumBlockLastElementMatch(t *testing.T) {
 	inStream := buildDataInputStream([]ident.IndexChecksumBlock{{
 		Marker:    []byte("abc"),
 		Checksums: []uint32{1, 2, 3},
@@ -313,7 +313,7 @@ func TestLoadNextValidIndexHashBlockLastElementMatch(t *testing.T) {
 	assert.Equal(t, 0, len(string(bl.Marker)))
 }
 
-func TestLoadNextValidIndexHashBlock(t *testing.T) {
+func TestLoadNextValidIndexChecksumBlock(t *testing.T) {
 	bl1 := ident.IndexChecksumBlock{
 		Marker:    []byte("a"),
 		Checksums: []uint32{1, 2, 3},

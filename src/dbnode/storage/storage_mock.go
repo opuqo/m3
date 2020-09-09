@@ -344,10 +344,10 @@ func (mr *MockDatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // IndexChecksum mocks base method
-func (m *MockDatabase) IndexChecksum(ctx context.Context, namespace, id ident.ID, useID bool, start time.Time) (ident.IndexChecksumBlock, error) {
+func (m *MockDatabase) IndexChecksum(ctx context.Context, namespace, id ident.ID, useID bool, start time.Time) (ident.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IndexChecksum", ctx, namespace, id, useID, start)
-	ret0, _ := ret[0].(ident.IndexChecksumBlock)
+	ret0, _ := ret[0].(ident.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -754,10 +754,10 @@ func (mr *MockdatabaseMockRecorder) ReadEncoded(ctx, namespace, id, start, end i
 }
 
 // IndexChecksum mocks base method
-func (m *Mockdatabase) IndexChecksum(ctx context.Context, namespace, id ident.ID, useID bool, start time.Time) (ident.IndexChecksumBlock, error) {
+func (m *Mockdatabase) IndexChecksum(ctx context.Context, namespace, id ident.ID, useID bool, start time.Time) (ident.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IndexChecksum", ctx, namespace, id, useID, start)
-	ret0, _ := ret[0].(ident.IndexChecksumBlock)
+	ret0, _ := ret[0].(ident.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1344,10 +1344,10 @@ func (mr *MockdatabaseNamespaceMockRecorder) ReadEncoded(ctx, id, start, end int
 }
 
 // IndexChecksum mocks base method
-func (m *MockdatabaseNamespace) IndexChecksum(ctx context.Context, id ident.ID, useID bool, start time.Time) (ident.IndexChecksumBlock, error) {
+func (m *MockdatabaseNamespace) IndexChecksum(ctx context.Context, id ident.ID, useID bool, start time.Time) (ident.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IndexChecksum", ctx, id, useID, start)
-	ret0, _ := ret[0].(ident.IndexChecksumBlock)
+	ret0, _ := ret[0].(ident.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1822,10 +1822,10 @@ func (mr *MockdatabaseShardMockRecorder) ReadEncoded(ctx, id, start, end, nsCtx 
 }
 
 // IndexChecksum mocks base method
-func (m *MockdatabaseShard) IndexChecksum(ctx context.Context, id ident.ID, useID bool, start time.Time, nsCtx namespace.Context) (ident.IndexChecksumBlock, error) {
+func (m *MockdatabaseShard) IndexChecksum(ctx context.Context, id ident.ID, useID bool, start time.Time, nsCtx namespace.Context) (ident.IndexChecksum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "IndexChecksum", ctx, id, useID, start, nsCtx)
-	ret0, _ := ret[0].(ident.IndexChecksumBlock)
+	ret0, _ := ret[0].(ident.IndexChecksum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

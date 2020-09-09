@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3/src/dbnode/persist/schema"
 	"github.com/m3db/m3/src/x/pool"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -66,15 +67,6 @@ var (
 		Index:            234,
 		ID:               []byte("testIndexSummary"),
 		IndexEntryOffset: 2390423,
-	}
-
-	testIndexChecksum = schema.IndexEntry{
-		ID:            testIndexEntry.ID,
-		IndexChecksum: testIndexEntryChecksum,
-	}
-
-	testIndexChecksumNoID = schema.IndexEntry{
-		IndexChecksum: testIndexEntryChecksum,
 	}
 
 	testLogInfo = schema.LogInfo{
@@ -393,7 +385,7 @@ func TestIndexEntryRoundtrip(t *testing.T) {
 	require.Equal(t, testIndexEntry, res)
 }
 
-func TestIndexEntryIntoIndexHashRoundtripWithBytesPool(t *testing.T) {
+func TestIndexEntryIntoIndexChecksumRoundtripWithBytesPool(t *testing.T) {
 	var (
 		pool = pool.NewBytesPool(nil, nil)
 		enc  = NewEncoder()
@@ -403,31 +395,21 @@ func TestIndexEntryIntoIndexHashRoundtripWithBytesPool(t *testing.T) {
 
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	res, err := dec.DecodeIndexEntryToIndexChecksum(true, pool)
+	checksum, _, err := dec.DecodeIndexEntryToIndexChecksum(testIndexEntry.ID, pool)
 	require.NoError(t, err)
-	require.Equal(t, testIndexChecksum, res)
+	require.Equal(t, testIndexEntryChecksum, checksum)
 }
-
-func TestIndexEntryRoundtripWithBytesPool(t *testing.T) {
+func TestIndexEntryIntoIndexChecksumRoundtripWithoutBytesPool(t *testing.T) {
 	var (
-		pool = pool.NewBytesPool(nil, nil)
-
 		enc = NewEncoder()
 		dec = NewDecoder(nil)
 	)
 
-	pool.Init()
-
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	res, err := dec.DecodeIndexEntry(pool)
+	checksum, _, err := dec.DecodeIndexEntryToIndexChecksum(testIndexEntry.ID, nil)
 	require.NoError(t, err)
-	require.Equal(t, testIndexEntry, res)
-
-	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	indexHash, err := dec.DecodeIndexEntryToIndexChecksum(true, pool)
-	require.NoError(t, err)
-	require.Equal(t, testIndexChecksum, indexHash)
+	require.Equal(t, testIndexEntryChecksum, checksum)
 }
 
 // Make sure the V3 decoding code can handle the V1 file format.
@@ -463,7 +445,7 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV1(t *testing.T) {
 	require.Equal(t, expected, res)
 
 	dec.Reset(NewByteDecoderStream(cloned))
-	_, err = dec.DecodeIndexEntryToIndexChecksum(true, nil)
+	_, _, err = dec.DecodeIndexEntryToIndexChecksum(testIndexEntry.ID, nil)
 	require.Error(t, err)
 }
 
@@ -499,7 +481,7 @@ func TestIndexEntryRoundTripForwardsCompatibilityV1(t *testing.T) {
 	require.Equal(t, expected, res)
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	_, err = dec.DecodeIndexEntryToIndexChecksum(true, nil)
+	_, _, err = dec.DecodeIndexEntryToIndexChecksum(testIndexEntry.ID, nil)
 	require.Error(t, err)
 }
 
@@ -525,7 +507,7 @@ func TestIndexEntryRoundTripBackwardsCompatibilityV2(t *testing.T) {
 	require.Equal(t, expected, res)
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	_, err = dec.DecodeIndexEntryToIndexChecksum(true, nil)
+	_, _, err = dec.DecodeIndexEntryToIndexChecksum(testIndexEntry.ID, nil)
 	require.Error(t, err)
 }
 
@@ -550,7 +532,7 @@ func TestIndexEntryRoundTripForwardsCompatibilityV2(t *testing.T) {
 	require.Equal(t, expected, res)
 
 	dec.Reset(NewByteDecoderStream(enc.Bytes()))
-	_, err = dec.DecodeIndexEntryToIndexChecksum(true, nil)
+	_, _, err = dec.DecodeIndexEntryToIndexChecksum(testIndexEntry.ID, nil)
 	require.Error(t, err)
 }
 
@@ -655,7 +637,7 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 		case 5:
 			require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
 			input = append(input, testIndexEntry)
-			expected = append(expected, testIndexChecksum)
+			expected = append(expected, testIndexEntryChecksum)
 		}
 	}
 
@@ -673,7 +655,9 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 		case 4:
 			res, err = dec.DecodeLogMetadata()
 		case 5:
-			res, err = dec.DecodeIndexEntryToIndexChecksum(true, nil)
+			var s IndexChecksumLookupStatus
+			res, s, err = dec.DecodeIndexEntryToIndexChecksum(testIndexEntry.ID, nil)
+			assert.Equal(t, s, Match)
 		}
 		require.NoError(t, err)
 		output = append(output, res)

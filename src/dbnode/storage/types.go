@@ -177,7 +177,7 @@ type Database interface {
 		id ident.ID,
 		useID bool,
 		start time.Time,
-	) (ident.IndexChecksumBlock, error)
+	) (ident.IndexChecksum, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -349,7 +349,7 @@ type databaseNamespace interface {
 		id ident.ID,
 		useID bool,
 		start time.Time,
-	) (ident.IndexChecksumBlock, error)
+	) (ident.IndexChecksum, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.
@@ -506,7 +506,7 @@ type databaseShard interface {
 		useID bool,
 		start time.Time,
 		nsCtx namespace.Context,
-	) (ident.IndexChecksumBlock, error)
+	) (ident.IndexChecksum, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block
 	// start times.

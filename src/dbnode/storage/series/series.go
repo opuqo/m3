@@ -407,7 +407,7 @@ func (s *dbSeries) IndexChecksum(
 	start time.Time,
 	useID bool,
 	nsCtx namespace.Context,
-) (ident.IndexChecksumBlock, error) {
+) (ident.IndexChecksum, error) {
 	s.RLock()
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
 	r, err := reader.indexChecksum(ctx, start, useID, nsCtx)

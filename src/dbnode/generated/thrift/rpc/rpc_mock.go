@@ -450,19 +450,19 @@ func (mr *MockTChanNodeMockRecorder) Health(ctx interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Health", reflect.TypeOf((*MockTChanNode)(nil).Health), ctx)
 }
 
-// IndexHash mocks base method
-func (m *MockTChanNode) IndexHash(ctx thrift.Context, req *FetchTaggedRequest) (*IndexHashResult_, error) {
+// IndexChecksum mocks base method
+func (m *MockTChanNode) IndexChecksum(ctx thrift.Context, req *IndexChecksumRequest) (*IndexChecksumResult_, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IndexHash", ctx, req)
-	ret0, _ := ret[0].(*IndexHashResult_)
+	ret := m.ctrl.Call(m, "IndexChecksum", ctx, req)
+	ret0, _ := ret[0].(*IndexChecksumResult_)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// IndexHash indicates an expected call of IndexHash
-func (mr *MockTChanNodeMockRecorder) IndexHash(ctx, req interface{}) *gomock.Call {
+// IndexChecksum indicates an expected call of IndexChecksum
+func (mr *MockTChanNodeMockRecorder) IndexChecksum(ctx, req interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexHash", reflect.TypeOf((*MockTChanNode)(nil).IndexHash), ctx, req)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IndexChecksum", reflect.TypeOf((*MockTChanNode)(nil).IndexChecksum), ctx, req)
 }
 
 // Query mocks base method

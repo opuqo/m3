@@ -51,10 +51,12 @@ func TestQueryOptions(t *testing.T) {
 	assert.Equal(t, "storage.dbNamespace.QueryIDs", opts.NSTracepoint())
 	assert.Equal(t, "storage.db.QueryIDs", opts.DBTracepoint())
 	assert.Equal(t, "storage.nsIndex.Query", opts.NSIdxTracepoint())
+}
 
-	// Convert to index hash query.
-	opts = opts.ToIndexChecksumQueryOptions(100)
-	assert.Equal(t, 100, opts.BatchSize)
+func TestIndexChecksumQueryOptions(t *testing.T) {
+	opts := QueryOptions{
+		IndexChecksumQuery: true,
+	}
 
 	assert.False(t, opts.SeriesLimitExceeded(19))
 	assert.False(t, opts.SeriesLimitExceeded(20))

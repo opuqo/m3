@@ -21,6 +21,7 @@
 package msgpack
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -46,8 +47,22 @@ var (
 	emptyLogEntryRemainingToken DecodeLogEntryRemainingToken
 
 	errorUnableToDetermineNumFieldsToSkip          = errors.New("unable to determine num fields to skip")
-	errorCalledDecodeBytesWithoutByteStreamDecoder = errors.New("called decodeBytes with out byte stream decoder")
+	errorCalledDecodeBytesWithoutByteStreamDecoder = errors.New("called decodeBytes without byte stream decoder")
 	errorIndexEntryChecksumMismatch                = errors.New("decode index entry encountered checksum mismatch")
+)
+
+// IndexChecksumLookupStatus is the status for an index checksum lookup.
+type IndexChecksumLookupStatus byte
+
+const (
+	// Match indicates the current entry ID matches the requested ID.
+	Match IndexChecksumLookupStatus = iota
+	// Mismatch indicates the current entry ID preceeds the requested ID.
+	Mismatch
+	// NotFound indicates the current entry ID is lexicographically larger than
+	// the requested ID; since the index file is in sorted order, this means the
+	// ID does does not exist in the file.
+	NotFound
 )
 
 // Decoder decodes persisted msgpack-encoded data
@@ -135,31 +150,21 @@ func (dec *Decoder) DecodeIndexEntry(bytesPool pool.BytesPool) (schema.IndexEntr
 
 // DecodeIndexEntryToIndexChecksum decodes an index entry into a minimal index entry.
 func (dec *Decoder) DecodeIndexEntryToIndexChecksum(
-	withID bool,
+	compareID []byte,
 	bytesPool pool.BytesPool,
-) (schema.IndexEntry, error) {
+) (uint32, IndexChecksumLookupStatus, error) {
 	if dec.err != nil {
-		return emptyIndexChecksumEntry, dec.err
+		return 0, NotFound, dec.err
 	}
-
-	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
-	skippableFields, actual, ok := dec.checkNumIndexFields()
-	if !ok {
-		return emptyIndexChecksumEntry, dec.err
-	}
-
-	if actual-skippableFields < 7 {
-		return emptyIndexChecksumEntry, errors.New("invalid entry file version")
-	}
-
 	dec.readerWithDigest.setDigestReaderEnabled(true)
-	indexChecksum := dec.decodeIndexChecksum(withID, actual, bytesPool)
+	_, numFieldsToSkip := dec.decodeRootObject(indexEntryVersion, indexEntryType)
+	indexChecksum, status := dec.decodeIndexChecksum(compareID, bytesPool)
 	dec.readerWithDigest.setDigestReaderEnabled(false)
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
-		return emptyIndexChecksumEntry, dec.err
+		return 0, NotFound, dec.err
 	}
-	return indexChecksum, nil
+	return uint32(indexChecksum), status, nil
 }
 
 // DecodeIndexSummary decodes index summary.
@@ -470,28 +475,47 @@ func (dec *Decoder) decodeIndexEntry(bytesPool pool.BytesPool) schema.IndexEntry
 }
 
 func (dec *Decoder) decodeIndexChecksum(
-	withID bool,
-	actual int,
+	compareID []byte,
 	bytesPool pool.BytesPool,
-) schema.IndexEntry {
-	var indexEntry schema.IndexEntry
-	// NB: don't need Index.
-	dec.skip(1)
-	if !withID {
-		dec.skip(1)
-	} else {
-		if bytesPool == nil {
-			indexEntry.ID, _, _ = dec.decodeBytes()
-		} else {
-			indexEntry.ID = dec.decodeBytesWithPool(bytesPool)
-		}
+) (int64, IndexChecksumLookupStatus) {
+	numFieldsToSkip, actual, ok := dec.checkNumIndexFields()
+	if !ok {
+		return 0, NotFound
 	}
 
-	// NB: skip to last element, which is index checksum.
-	dec.skip(actual - 3)
-	a := dec.decodeVarint()
-	indexEntry.IndexChecksum = uint32(a)
-	return indexEntry
+	if actual-numFieldsToSkip < 7 {
+		dec.err = errors.New("invalid entry file version")
+		return 0, NotFound
+	}
+
+	// NB: don't need Index.
+	dec.skip(1)
+	var compare int
+	if bytesPool == nil {
+		entryID, _, _ := dec.decodeBytes()
+		compare = bytes.Compare(entryID, compareID)
+	} else {
+		entryID := dec.decodeBytesWithPool(bytesPool)
+		compare = bytes.Compare(entryID, compareID)
+		bytesPool.Put(entryID)
+	}
+
+	// NB: skip to last element, which is the index checksum.
+	dec.skip(actual + numFieldsToSkip - 3)
+	if compare == 0 {
+		// NB: entry matches compare ID, return index checksum.
+		return dec.decodeVarint(), Match
+	}
+
+	// NB: skip the index checksum for this entry.
+	dec.skip(1)
+	if compare < 0 {
+		// NB: seekID should appear after the current entry.
+		return 0, Mismatch
+	}
+
+	// NB: current entry is not in the index.
+	return 0, NotFound
 }
 
 func (dec *Decoder) decodeIndexSummary() (schema.IndexSummary, IndexSummaryToken) {

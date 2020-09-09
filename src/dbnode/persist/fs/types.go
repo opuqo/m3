@@ -206,7 +206,7 @@ type DataFileSetSeeker interface {
 
 	// SeekIndexEntryToIndexChecksum seeks in a manner similar to SeekIndexEntry, but
 	// instead yields a minimal structure describing a checksum of the series.
-	SeekIndexEntryToIndexChecksum(id ident.ID, withID bool, resources ReusableSeekerResources) (ident.IndexChecksumBlock, error)
+	SeekIndexEntryToIndexChecksum(id ident.ID, withID bool, resources ReusableSeekerResources) (ident.IndexChecksum, error)
 
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range
@@ -244,7 +244,7 @@ type ConcurrentDataFileSetSeeker interface {
 	SeekIndexEntry(id ident.ID, resources ReusableSeekerResources) (IndexEntry, error)
 
 	// SeekIndexEntryToIndexChecksum is the same as in DataFileSetSeeker.
-	SeekIndexEntryToIndexChecksum(id ident.ID, withID bool, resources ReusableSeekerResources) (ident.IndexChecksumBlock, error)
+	SeekIndexEntryToIndexChecksum(id ident.ID, withID bool, resources ReusableSeekerResources) (ident.IndexChecksum, error)
 
 	// ConcurrentIDBloomFilter is the same as in DataFileSetSeeker.
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
